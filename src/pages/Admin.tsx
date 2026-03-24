@@ -1,14 +1,29 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
   BookOpen, Users, CreditCard, Film, BarChart3, Plus, Pencil, Trash2, Search, ChevronDown,
   LayoutDashboard, GraduationCap, Settings,
 } from "lucide-react";
 import Navbar from "@/components/landing/Navbar";
+import { supabase } from "@/lib/supabase";
+import { useNavigate } from "react-router-dom";
 
 type Tab = "dashboard" | "modules" | "lessons" | "users" | "subscriptions" | "videos" | "reports";
+
+type LessonType = "multiple_choice" | "complete_word" | "image_match" | "drag_order";
+
+type LessonRow = {
+  id: number;
+  title: string;
+  module: string;
+  subject: "Matemática" | "Português" | "Inglês";
+  type: LessonType;
+  active: boolean;
+};
 
 const tabs: { id: Tab; label: string; icon: React.ElementType }[] = [
   { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -28,7 +43,7 @@ const mockModules = [
   { id: 4, name: "Domínio", age: "10+ anos", lessons: 28, active: false },
 ];
 
-const mockLessons = [
+const mockLessons: LessonRow[] = [
   { id: 1, title: "Somas até 5", module: "Descoberta", subject: "Matemática", type: "multiple_choice", active: true },
   { id: 2, title: "Vogais", module: "Descoberta", subject: "Português", type: "complete_word", active: true },
   { id: 3, title: "Colors", module: "Construção", subject: "Inglês", type: "image_match", active: true },
@@ -73,7 +88,7 @@ const AdminDashboard = () => (
   </div>
 );
 
-const CrudTable = ({ columns, data, renderRow }: { columns: string[]; data: any[]; renderRow: (item: any, i: number) => React.ReactNode }) => (
+const CrudTable = <T,>({ columns, data, renderRow }: { columns: string[]; data: T[]; renderRow: (item: T, i: number) => React.ReactNode }) => (
   <div className="bg-card rounded-2xl shadow-card overflow-hidden">
     <div className="overflow-x-auto">
       <table className="w-full text-sm">
@@ -91,11 +106,23 @@ const CrudTable = ({ columns, data, renderRow }: { columns: string[]; data: any[
   </div>
 );
 
-const ActionButtons = () => (
+const ActionButtons = ({ onEdit, onDelete }: { onEdit?: () => void; onDelete?: () => void }) => (
   <td className="p-4 text-right">
     <div className="flex justify-end gap-2">
-      <button className="p-2 rounded-lg hover:bg-muted transition-colors text-accent"><Pencil className="w-4 h-4" /></button>
-      <button className="p-2 rounded-lg hover:bg-muted transition-colors text-destructive"><Trash2 className="w-4 h-4" /></button>
+      <button
+        type="button"
+        className="p-2 rounded-lg hover:bg-muted transition-colors text-accent"
+        onClick={onEdit}
+      >
+        <Pencil className="w-4 h-4" />
+      </button>
+      <button
+        type="button"
+        className="p-2 rounded-lg hover:bg-muted transition-colors text-destructive"
+        onClick={onDelete}
+      >
+        <Trash2 className="w-4 h-4" />
+      </button>
     </div>
   </td>
 );
@@ -110,10 +137,65 @@ const AdminPage = () => {
   const [activeTab, setActiveTab] = useState<Tab>("dashboard");
   const [search, setSearch] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [checking, setChecking] = useState(true);
+  const [lessonsData, setLessonsData] = useState<LessonRow[]>(mockLessons);
+  const [lessonDialogOpen, setLessonDialogOpen] = useState(false);
+  const [editingLessonId, setEditingLessonId] = useState<number | null>(null);
+  const [lessonTitle, setLessonTitle] = useState("");
+  const [lessonModule, setLessonModule] = useState(mockModules[0]?.name ?? "Descoberta");
+  const [lessonSubject, setLessonSubject] = useState<LessonRow["subject"]>("Matemática");
+  const [lessonType, setLessonType] = useState<LessonType>("multiple_choice");
+  const [lessonActive, setLessonActive] = useState(true);
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    let mounted = true;
+
+    const check = async () => {
+      setChecking(true);
+      const { data } = await supabase.auth.getUser();
+      if (!mounted) return;
+      if (!data.user) {
+        setChecking(false);
+        navigate("/login");
+        return;
+      }
+
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", data.user.id)
+        .maybeSingle();
+
+      if (!mounted) return;
+      if (profile?.role !== "admin" && profile?.role !== "super_admin") {
+        setChecking(false);
+        navigate("/dashboard");
+        return;
+      }
+
+      setChecking(false);
+    };
+
+    check();
+    const { data: subscription } = supabase.auth.onAuthStateChange(() => check());
+
+    return () => {
+      mounted = false;
+      subscription.subscription.unsubscribe();
+    };
+  }, [navigate]);
 
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
+      {checking ? (
+        <div className="container mx-auto max-w-6xl px-4 py-10">
+          <div className="bg-card rounded-3xl shadow-card p-8">
+            <p className="text-muted-foreground">Verificando acesso...</p>
+          </div>
+        </div>
+      ) : (
       <div className="flex">
         {/* Sidebar */}
         <motion.aside
@@ -143,6 +225,118 @@ const AdminPage = () => {
 
         {/* Main */}
         <main className="flex-1 p-6 lg:p-8">
+          <Dialog open={lessonDialogOpen} onOpenChange={setLessonDialogOpen}>
+            <DialogContent className="sm:max-w-xl">
+              <DialogHeader>
+                <DialogTitle>Editar lição</DialogTitle>
+              </DialogHeader>
+              <div className="grid gap-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="lessonTitle">Título</Label>
+                  <Input id="lessonTitle" className="rounded-xl" value={lessonTitle} onChange={(e) => setLessonTitle(e.target.value)} />
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="grid gap-2">
+                    <Label htmlFor="lessonModule">Módulo</Label>
+                    <select
+                      id="lessonModule"
+                      className="flex h-10 w-full rounded-xl border border-input bg-background px-3 py-2 text-sm"
+                      value={lessonModule}
+                      onChange={(e) => setLessonModule(e.target.value)}
+                    >
+                      {mockModules.map((m) => (
+                        <option key={m.id} value={m.name}>
+                          {m.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="lessonSubject">Matéria</Label>
+                    <select
+                      id="lessonSubject"
+                      className="flex h-10 w-full rounded-xl border border-input bg-background px-3 py-2 text-sm"
+                      value={lessonSubject}
+                      onChange={(e) => setLessonSubject(e.target.value as LessonRow["subject"])}
+                    >
+                      <option value="Matemática">Matemática</option>
+                      <option value="Português">Português</option>
+                      <option value="Inglês">Inglês</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="grid gap-2">
+                    <Label htmlFor="lessonType">Tipo</Label>
+                    <select
+                      id="lessonType"
+                      className="flex h-10 w-full rounded-xl border border-input bg-background px-3 py-2 text-sm"
+                      value={lessonType}
+                      onChange={(e) => setLessonType(e.target.value as LessonType)}
+                    >
+                      <option value="multiple_choice">Múltipla escolha</option>
+                      <option value="complete_word">Completar palavra</option>
+                      <option value="image_match">Associação</option>
+                      <option value="drag_order">Ordenar</option>
+                    </select>
+                  </div>
+
+                  <div className="grid gap-2">
+                    <Label>Status</Label>
+                    <label className="flex items-center gap-3 rounded-xl border border-input bg-background px-3 py-2 h-10">
+                      <input
+                        type="checkbox"
+                        checked={lessonActive}
+                        onChange={(e) => setLessonActive(e.target.checked)}
+                      />
+                      <span className="text-sm font-bold">{lessonActive ? "Ativo" : "Inativo"}</span>
+                    </label>
+                  </div>
+                </div>
+              </div>
+
+              <DialogFooter className="sm:justify-end">
+                <Button
+                  variant="outline"
+                  className="rounded-xl"
+                  type="button"
+                  onClick={() => setLessonDialogOpen(false)}
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  className="bg-gradient-hero rounded-xl font-bold"
+                  type="button"
+                  onClick={() => {
+                    if (editingLessonId === null) {
+                      setLessonDialogOpen(false);
+                      return;
+                    }
+                    setLessonsData((prev) =>
+                      prev.map((l) =>
+                        l.id === editingLessonId
+                          ? {
+                              ...l,
+                              title: lessonTitle,
+                              module: lessonModule,
+                              subject: lessonSubject,
+                              type: lessonType,
+                              active: lessonActive,
+                            }
+                          : l,
+                      ),
+                    );
+                    setLessonDialogOpen(false);
+                  }}
+                >
+                  Salvar
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
             <h1 className="text-2xl font-display font-extrabold">
               {tabs.find((t) => t.id === activeTab)?.label} ⚙️
@@ -183,7 +377,7 @@ const AdminPage = () => {
           {activeTab === "lessons" && (
             <CrudTable
               columns={["Título", "Módulo", "Matéria", "Tipo", "Status"]}
-              data={mockLessons}
+              data={lessonsData}
               renderRow={(l) => (
                 <tr key={l.id} className="border-b border-border last:border-0 hover:bg-muted/30 transition-colors">
                   <td className="p-4 font-bold">{l.title}</td>
@@ -198,7 +392,18 @@ const AdminPage = () => {
                     </span>
                   </td>
                   <td className="p-4"><StatusBadge active={l.active} /></td>
-                  <ActionButtons />
+                  <ActionButtons
+                    onEdit={() => {
+                      setEditingLessonId(l.id);
+                      setLessonTitle(l.title);
+                      setLessonModule(l.module);
+                      setLessonSubject(l.subject);
+                      setLessonType(l.type);
+                      setLessonActive(l.active);
+                      setLessonDialogOpen(true);
+                    }}
+                    onDelete={() => setLessonsData((prev) => prev.filter((x) => x.id !== l.id))}
+                  />
                 </tr>
               )}
             />
@@ -316,6 +521,7 @@ const AdminPage = () => {
           )}
         </main>
       </div>
+      )}
     </div>
   );
 };

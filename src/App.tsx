@@ -13,16 +13,20 @@ import Register from "./pages/Register.tsx";
 import Dashboard from "./pages/Dashboard.tsx";
 import Referral from "./pages/Referral.tsx";
 import Admin from "./pages/Admin.tsx";
+import Profile from "./pages/Profile.tsx";
 import NotFound from "./pages/NotFound.tsx";
+
+import { AuthProvider } from "./contexts/AuthContext";
 
 const queryClient = new QueryClient();
 
 const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
+  <AuthProvider>
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider>
+        <Toaster />
+        <Sonner />
+        <BrowserRouter>
         <Routes>
           <Route path="/" element={<Index />} />
           <Route path="/modulos" element={<Modules />} />
@@ -34,11 +38,13 @@ const App = () => (
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/indicacao" element={<Referral />} />
           <Route path="/admin" element={<Admin />} />
+          <Route path="/perfil" element={<Profile />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>
+</AuthProvider>
 );
 
 export default App;
