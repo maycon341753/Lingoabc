@@ -12,6 +12,7 @@ const LoginPage = () => {
   const [password, setPassword] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [loggedUserLabel, setLoggedUserLabel] = useState<string | null>(null);
+  const [loggedUserIsAdmin, setLoggedUserIsAdmin] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -29,6 +30,7 @@ const LoginPage = () => {
     const { data: subscription } = supabase.auth.onAuthStateChange((_event, session) => {
       if (!mounted) return;
       setLoggedUserLabel(session?.user?.email ?? null);
+      setLoggedUserIsAdmin(false);
     });
 
     return () => {
@@ -57,8 +59,12 @@ const LoginPage = () => {
             <p className="font-bold">Você já está logado</p>
             <p className="text-muted-foreground break-all">{loggedUserLabel}</p>
             <div className="mt-3 flex gap-2">
-              <Button type="button" className="rounded-xl" onClick={() => navigate("/dashboard")}>
-                Ir ao painel
+              <Button
+                type="button"
+                className="rounded-xl"
+                onClick={() => navigate(loggedUserIsAdmin ? "/admin" : "/dashboard")}
+              >
+                {loggedUserIsAdmin ? "Ir ao admin" : "Ir ao painel"}
               </Button>
               <Button
                 type="button"
@@ -95,15 +101,17 @@ const LoginPage = () => {
             let identified = data.user.email ?? "Usuário";
             const { data: profileData } = await supabase
               .from("profiles")
-              .select("name")
+              .select("name, role")
               .eq("id", data.user.id)
               .maybeSingle();
 
             if (profileData?.name) identified = profileData.name;
+            const isAdmin = profileData?.role === "admin";
             setLoggedUserLabel(data.user.email ?? null);
+            setLoggedUserIsAdmin(isAdmin);
             setIsSubmitting(false);
             alert(`Bem-vindo, ${identified}!`);
-            navigate("/dashboard");
+            navigate(isAdmin ? "/admin" : "/dashboard");
           }}
         >
           <div>

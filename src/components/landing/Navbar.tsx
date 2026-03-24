@@ -9,6 +9,7 @@ import { supabase } from "@/lib/supabase";
 const Navbar = () => {
   const [open, setOpen] = useState(false);
   const [userLabel, setUserLabel] = useState<string | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -19,14 +20,16 @@ const Navbar = () => {
       if (!mounted) return;
       if (error || !data.user) {
         setUserLabel(null);
+        setIsAdmin(false);
         return;
       }
 
       let label = data.user.email ?? "Usuário";
-      const { data: profile } = await supabase.from("profiles").select("name").eq("id", data.user.id).maybeSingle();
+      const { data: profile } = await supabase.from("profiles").select("name, role").eq("id", data.user.id).maybeSingle();
       if (!mounted) return;
       if (profile?.name) label = profile.name;
       setUserLabel(label);
+      setIsAdmin(profile?.role === "admin");
     };
 
     sync();
@@ -66,6 +69,11 @@ const Navbar = () => {
               <Link to="/perfil" className="text-sm font-semibold text-muted-foreground hover:text-foreground transition-colors">
                 {userLabel}
               </Link>
+              {isAdmin && (
+                <Button variant="outline" className="rounded-xl font-bold" onClick={() => navigate("/admin")}>
+                  Admin
+                </Button>
+              )}
               <Button variant="outline" className="rounded-xl font-bold" onClick={() => navigate("/dashboard")}>
                 Painel
               </Button>
@@ -115,6 +123,18 @@ const Navbar = () => {
                   <Link to="/perfil" className="text-sm font-semibold py-2" onClick={() => setOpen(false)}>
                     {userLabel}
                   </Link>
+                  {isAdmin && (
+                    <Button
+                      variant="outline"
+                      className="rounded-xl font-bold"
+                      onClick={() => {
+                        navigate("/admin");
+                        setOpen(false);
+                      }}
+                    >
+                      Admin
+                    </Button>
+                  )}
                   <Button variant="outline" className="rounded-xl font-bold" onClick={() => { navigate("/dashboard"); setOpen(false); }}>
                     Painel
                   </Button>

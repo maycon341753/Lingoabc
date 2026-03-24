@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,6 +7,8 @@ import {
   LayoutDashboard, GraduationCap, Settings,
 } from "lucide-react";
 import Navbar from "@/components/landing/Navbar";
+import { supabase } from "@/lib/supabase";
+import { useNavigate } from "react-router-dom";
 
 type Tab = "dashboard" | "modules" | "lessons" | "users" | "subscriptions" | "videos" | "reports";
 
@@ -110,10 +112,57 @@ const AdminPage = () => {
   const [activeTab, setActiveTab] = useState<Tab>("dashboard");
   const [search, setSearch] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [checking, setChecking] = useState(true);
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    let mounted = true;
+
+    const check = async () => {
+      setChecking(true);
+      const { data } = await supabase.auth.getUser();
+      if (!mounted) return;
+      if (!data.user) {
+        setChecking(false);
+        navigate("/login");
+        return;
+      }
+
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", data.user.id)
+        .maybeSingle();
+
+      if (!mounted) return;
+      if (profile?.role !== "admin") {
+        setChecking(false);
+        navigate("/dashboard");
+        return;
+      }
+
+      setChecking(false);
+    };
+
+    check();
+    const { data: subscription } = supabase.auth.onAuthStateChange(() => check());
+
+    return () => {
+      mounted = false;
+      subscription.subscription.unsubscribe();
+    };
+  }, [navigate]);
 
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
+      {checking ? (
+        <div className="container mx-auto max-w-6xl px-4 py-10">
+          <div className="bg-card rounded-3xl shadow-card p-8">
+            <p className="text-muted-foreground">Verificando acesso...</p>
+          </div>
+        </div>
+      ) : (
       <div className="flex">
         {/* Sidebar */}
         <motion.aside
@@ -316,6 +365,7 @@ const AdminPage = () => {
           )}
         </main>
       </div>
+      )}
     </div>
   );
 };
