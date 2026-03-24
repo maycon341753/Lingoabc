@@ -10,6 +10,8 @@ import { useAuth } from "@/contexts/AuthContext";
 type VideoMediaRow = {
   id: string;
   title: string;
+  description?: string | null;
+  subject?: string | null;
   module: string | null;
   is_music: boolean;
   active: boolean;
@@ -30,6 +32,16 @@ const VideosPage = () => {
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [uploadStartedAt, setUploadStartedAt] = useState<number | null>(null);
   const [uploadElapsedSec, setUploadElapsedSec] = useState(0);
+  const [editOpen, setEditOpen] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
+  const [editSaving, setEditSaving] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editTitle, setEditTitle] = useState("");
+  const [editDescription, setEditDescription] = useState("");
+  const [editSubject, setEditSubject] = useState("");
+  const [editModuleName, setEditModuleName] = useState("");
+  const [editIsMusic, setEditIsMusic] = useState(false);
+  const [editActive, setEditActive] = useState(true);
   const [rows, setRows] = useState<VideoMediaRow[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -37,7 +49,7 @@ const VideosPage = () => {
     setLoading(true);
     const { data, error } = await supabase
       .from("videos_media")
-      .select("id,title,module,is_music,active,bucket,object_name,created_at")
+      .select("id,title,description,subject,module,is_music,active,bucket,object_name,created_at")
       .order("created_at", { ascending: false });
     if (error) {
       alert(error.message);
@@ -275,6 +287,17 @@ const VideosPage = () => {
               <td className="p-4">{v.is_music ? "Música" : "Vídeo"}</td>
               <td className="p-4">{v.active ? "Ativo" : "Inativo"}</td>
               <ActionButtons
+                onEdit={() => {
+                  setEditError(null);
+                  setEditingId(v.id);
+                  setEditTitle(v.title ?? "");
+                  setEditDescription(v.description ?? "");
+                  setEditSubject(v.subject ?? "");
+                  setEditModuleName(v.module ?? "");
+                  setEditIsMusic(Boolean(v.is_music));
+                  setEditActive(Boolean(v.active));
+                  setEditOpen(true);
+                }}
                 onDelete={async () => {
                   const del = await supabase.from("videos_media").delete().eq("id", v.id);
                   if (del.error) {
@@ -288,6 +311,147 @@ const VideosPage = () => {
           )}
         />
       )}
+
+      <Dialog
+        open={editOpen}
+        onOpenChange={(open) => {
+          setEditOpen(open);
+          if (!open) {
+            setEditError(null);
+            setEditSaving(false);
+            setEditingId(null);
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-xl">
+          <DialogHeader>
+            <DialogTitle>Editar vídeo/música</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-4">
+            {editError && (
+              <div className="rounded-xl border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
+                {editError}
+              </div>
+            )}
+            <div className="grid gap-2">
+              <Label htmlFor="editTitle">Título</Label>
+              <Input id="editTitle" className="rounded-xl" value={editTitle} onChange={(e) => setEditTitle(e.target.value)} />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="editDescription">Descrição</Label>
+              <Input id="editDescription" className="rounded-xl" value={editDescription} onChange={(e) => setEditDescription(e.target.value)} />
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="editSubject">Matéria</Label>
+                <select
+                  id="editSubject"
+                  className="flex h-10 w-full rounded-xl border border-input bg-background px-3 py-2 text-sm"
+                  value={editSubject}
+                  onChange={(e) => setEditSubject(e.target.value)}
+                >
+                  <option value="">—</option>
+                  <option value="Português">Português</option>
+                  <option value="Matemática">Matemática</option>
+                  <option value="Inglês">Inglês</option>
+                </select>
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="editModule">Módulo</Label>
+                <select
+                  id="editModule"
+                  className="flex h-10 w-full rounded-xl border border-input bg-background px-3 py-2 text-sm"
+                  value={editModuleName}
+                  onChange={(e) => setEditModuleName(e.target.value)}
+                >
+                  <option value="">—</option>
+                  <option value="Descoberta">Descoberta</option>
+                  <option value="Construção">Construção</option>
+                  <option value="Desenvolvimento">Desenvolvimento</option>
+                  <option value="Domínio">Domínio</option>
+                </select>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid gap-2">
+                <Label>Tipo</Label>
+                <label className="flex items-center gap-3 rounded-xl border border-input bg-background px-3 py-2 h-10">
+                  <input type="checkbox" checked={editIsMusic} onChange={(e) => setEditIsMusic(e.target.checked)} />
+                  <span className="text-sm font-bold">Conteúdo de música (áudio)</span>
+                </label>
+              </div>
+              <div className="grid gap-2">
+                <Label>Status</Label>
+                <label className="flex items-center gap-3 rounded-xl border border-input bg-background px-3 py-2 h-10">
+                  <input type="checkbox" checked={editActive} onChange={(e) => setEditActive(e.target.checked)} />
+                  <span className="text-sm font-bold">{editActive ? "Ativo" : "Inativo"}</span>
+                </label>
+              </div>
+            </div>
+          </div>
+          <DialogFooter className="sm:justify-end">
+            <Button variant="outline" className="rounded-xl" type="button" onClick={() => setEditOpen(false)} disabled={editSaving}>
+              Cancelar
+            </Button>
+            <Button
+              className="bg-gradient-hero rounded-xl font-bold"
+              type="button"
+              disabled={editSaving}
+              onClick={async () => {
+                setEditError(null);
+                if (!isAdmin) {
+                  setEditError("Você não tem permissão para editar.");
+                  return;
+                }
+                if (!editingId) {
+                  setEditError("Registro inválido.");
+                  return;
+                }
+                if (!editTitle.trim()) {
+                  setEditError("Informe um título.");
+                  return;
+                }
+                setEditSaving(true);
+                const upd = await supabase
+                  .from("videos_media")
+                  .update({
+                    title: editTitle.trim(),
+                    description: editDescription || null,
+                    subject: editSubject || null,
+                    module: editModuleName || null,
+                    is_music: editIsMusic,
+                    active: editActive,
+                  })
+                  .eq("id", editingId);
+                if (upd.error) {
+                  setEditError(upd.error.message);
+                  setEditSaving(false);
+                  return;
+                }
+                setRows((prev) =>
+                  prev.map((r) =>
+                    r.id === editingId
+                      ? {
+                          ...r,
+                          title: editTitle.trim(),
+                          description: editDescription || null,
+                          subject: editSubject || null,
+                          module: editModuleName || null,
+                          is_music: editIsMusic,
+                          active: editActive,
+                        }
+                      : r,
+                  ),
+                );
+                setEditSaving(false);
+                setEditOpen(false);
+              }}
+            >
+              Salvar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
