@@ -32,7 +32,7 @@ const ModulesPage = () => {
   const [selectedSubject, setSelectedSubject] = useState("math");
   const lessons = generateLessons(40);
   const navigate = useNavigate();
-  const { loading, user, hasSubscription } = useAuth();
+  const { loading, user, hasSubscription, isAdmin } = useAuth();
 
   return (
     <div className="min-h-screen">
@@ -85,6 +85,12 @@ const ModulesPage = () => {
               {s.name}
             </button>
           ))}
+          <button
+            className="flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm transition-all bg-secondary text-primary-foreground shadow-playful"
+            onClick={() => navigate("/videos")}
+          >
+            Vídeos e Músicas
+          </button>
         </div>
 
         {/* Lesson map */}

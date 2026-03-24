@@ -7,6 +7,7 @@ import Index from "./pages/Index.tsx";
 import Modules from "./pages/Modules.tsx";
 import Lesson from "./pages/Lesson.tsx";
 import Plans from "./pages/Plans.tsx";
+import Videos from "./pages/Videos.tsx";
 import About from "./pages/About.tsx";
 import Login from "./pages/Login.tsx";
 import Register from "./pages/Register.tsx";
@@ -32,12 +33,13 @@ const App = () => (
           <Route path="/modulos" element={<Modules />} />
           <Route path="/licao" element={<Lesson />} />
           <Route path="/planos" element={<Plans />} />
+          <Route path="/videos" element={<Videos />} />
           <Route path="/sobre" element={<About />} />
           <Route path="/login" element={<Login />} />
           <Route path="/cadastro" element={<Register />} />
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/indicacao" element={<Referral />} />
-          <Route path="/admin" element={<Admin />} />
+          <Route path="/admin/*" element={<Admin />} />
           <Route path="/perfil" element={<Profile />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
