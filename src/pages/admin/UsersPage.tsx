@@ -6,6 +6,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { supabase } from "@/lib/supabase";
 
+const formatCpf = (value: string) => {
+  const digits = value.replace(/\D/g, "").slice(0, 11);
+  if (digits.length <= 3) return digits;
+  if (digits.length <= 6) return `${digits.slice(0, 3)}.${digits.slice(3)}`;
+  if (digits.length <= 9) return `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6)}`;
+  return `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6, 9)}-${digits.slice(9, 11)}`;
+};
+
 type AdminUsersViewRow = {
   user_id: string;
   name: string | null;
@@ -80,7 +88,14 @@ const UsersPage = () => {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="grid gap-2">
                 <Label htmlFor="userCpf">CPF</Label>
-                <Input id="userCpf" className="rounded-xl" value={userCpf} onChange={(e) => setUserCpf(e.target.value)} />
+                <Input
+                  id="userCpf"
+                  className="rounded-xl"
+                  value={formatCpf(userCpf)}
+                  onChange={(e) => setUserCpf(e.target.value.replace(/\D/g, "").slice(0, 11))}
+                  inputMode="numeric"
+                  maxLength={14}
+                />
               </div>
               <div className="grid gap-2">
                 <Label htmlFor="userRole">Role</Label>
@@ -166,7 +181,7 @@ const UsersPage = () => {
                 setEditingUserId(u.id);
                 setUserName(u.name);
                 setUserEmail(u.email);
-                setUserCpf(u.cpf ?? "");
+                setUserCpf((u.cpf ?? "").replace(/\D/g, "").slice(0, 11));
                 setUserRole(u.role ?? "user");
                 setUserPlan(u.plan ?? "—");
                 setUserDialogOpen(true);

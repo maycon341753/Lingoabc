@@ -29,8 +29,10 @@ const ModulesPage = () => {
   const [selectedModule, setSelectedModule] = useState(0);
   const [selectedSubject, setSelectedSubject] = useState("math");
   const [perfectIds, setPerfectIds] = useState<number[]>([]);
+  const [completedModules, setCompletedModules] = useState<boolean[]>([]);
   const navigate = useNavigate();
-  const { loading, user, hasSubscription, isAdmin } = useAuth();
+  const { loading, user, hasSubscription } = useAuth();
+  const isFreeUser = !loading && !!user && !hasSubscription;
 
   useEffect(() => {
     const moduleName = modules[selectedModule]?.name ?? "Descoberta";
@@ -44,14 +46,33 @@ const ModulesPage = () => {
     }
   }, [selectedModule, selectedSubject]);
 
+  useEffect(() => {
+    try {
+      const arr = modules.map((m) => {
+        const key = `progressPerfect:${selectedSubject}:${m.name}`;
+        const raw = window.localStorage.getItem(key);
+        const ids = raw ? (JSON.parse(raw) as number[]) : [];
+        return Array.isArray(ids) && ids.length >= 40;
+      });
+      setCompletedModules(arr);
+    } catch {
+      setCompletedModules(new Array(modules.length).fill(false));
+    }
+  }, [selectedSubject]);
+
   const lessons = useMemo(() => {
     const base = generateLessons(40);
     return base.map((l) => {
+      if (isFreeUser) {
+        const completed = l.id === 1 && perfectIds.includes(1);
+        const locked = l.id !== 1;
+        return { ...l, completed, locked };
+      }
       const completed = perfectIds.includes(l.id);
       const locked = l.id > 1 && !perfectIds.includes(l.id - 1);
       return { ...l, completed, locked };
     });
-  }, [perfectIds]);
+  }, [isFreeUser, perfectIds]);
 
   return (
     <div className="min-h-screen">
@@ -73,6 +94,8 @@ const ModulesPage = () => {
               className={`rounded-2xl p-5 text-center transition-all ${
                 selectedModule === i
                   ? `${m.gradient} text-primary-foreground shadow-playful scale-105`
+                  : completedModules[i]
+                  ? "bg-primary text-primary-foreground shadow-playful"
                   : "bg-card shadow-card hover:shadow-hover"
               }`}
               onClick={() => setSelectedModule(i)}
@@ -137,9 +160,8 @@ const ModulesPage = () => {
                 whileHover={!lesson.locked ? { scale: 1.1, y: -4 } : {}}
                 whileTap={!lesson.locked ? { scale: 0.95 } : {}}
                 onClick={() => {
-                  if (lesson.locked) return;
-                  if (!loading && user && !hasSubscription) {
-                    navigate("/planos");
+                  if (lesson.locked) {
+                    if (isFreeUser && lesson.id !== 1) navigate("/planos");
                     return;
                   }
                   const moduleName = modules[selectedModule]?.name ?? "Descoberta";

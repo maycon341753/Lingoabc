@@ -267,10 +267,10 @@ const LessonPage = () => {
   const lessonId = Number(searchParams.get("licao") || "1");
 
   useEffect(() => {
-    if (!loading && user && !hasSubscription) {
+    if (!loading && user && !hasSubscription && lessonId !== 1) {
       window.location.href = "/planos";
     }
-  }, [hasSubscription, loading, user]);
+  }, [hasSubscription, loading, user, lessonId]);
 
   const questions: Question[] = useMemo(() => {
     if (materia === "math") {

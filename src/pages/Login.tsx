@@ -17,7 +17,7 @@ const LoginPage = () => {
   const [loggedUserIsAdmin, setLoggedUserIsAdmin] = useState(false);
   const [successOpen, setSuccessOpen] = useState(false);
   const [successName, setSuccessName] = useState<string>("Usuário");
-  const [successTarget, setSuccessTarget] = useState<string>("/perfil");
+  const [successTarget, setSuccessTarget] = useState<string>("/dashboard");
   const successRedirectedRef = useRef(false);
   const { signOut } = useAuth();
   const navigate = useNavigate();
@@ -119,9 +119,9 @@ const LoginPage = () => {
               <Button
                 type="button"
                 className="rounded-xl"
-                onClick={() => navigate(loggedUserIsAdmin ? "/admin" : "/perfil")}
+                onClick={() => navigate(loggedUserIsAdmin ? "/admin" : "/dashboard")}
               >
-                {loggedUserIsAdmin ? "Ir ao admin" : "Ir ao perfil"}
+                {loggedUserIsAdmin ? "Ir ao admin" : "Ir ao painel"}
               </Button>
               <Button
                 type="button"
@@ -171,7 +171,7 @@ const LoginPage = () => {
             setIsSubmitting(false);
             successRedirectedRef.current = false;
             setSuccessName(identified);
-            setSuccessTarget(isAdmin ? "/admin" : "/perfil");
+            setSuccessTarget(isAdmin ? "/admin" : "/dashboard");
             setSuccessOpen(true);
             window.setTimeout(() => {
               proceedToTarget();
