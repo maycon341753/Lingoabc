@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { CheckCircle, XCircle, ArrowRight, Star, GripVertical } from "lucide-react";
 import Navbar from "@/components/landing/Navbar";
 import confetti from "@/lib/confetti";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/lib/supabase";
 
@@ -262,6 +262,7 @@ const ImageMatch = ({
 const LessonPage = () => {
   const { loading, user, hasSubscription } = useAuth();
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const materia = (searchParams.get("materia") || "math").toLowerCase();
   const modulo = searchParams.get("modulo") || "Descoberta";
   const lessonId = Number(searchParams.get("licao") || "1");
@@ -497,6 +498,20 @@ const LessonPage = () => {
   }, [finished, user?.id, materia, modulo, lessonId, score]);
 
   if (finished) {
+    const modulesOrder = ["Descoberta", "Construção", "Desenvolvimento", "Domínio"];
+    const currentIdx = Math.max(0, modulesOrder.findIndex((m) => m === modulo));
+    const nextModule = currentIdx >= 0 && currentIdx < modulesOrder.length - 1 ? modulesOrder[currentIdx + 1] : null;
+    const handleGoNextModule = () => {
+      if (!loading && user && !hasSubscription) {
+        navigate("/planos");
+        return;
+      }
+      if (nextModule) {
+        navigate(`/licao?modulo=${encodeURIComponent(nextModule)}&materia=${encodeURIComponent(materia)}&licao=1`);
+      } else {
+        navigate("/modulos");
+      }
+    };
     return (
       <div className="min-h-screen">
         <Navbar />
@@ -510,9 +525,14 @@ const LessonPage = () => {
               <span className="text-3xl font-extrabold">{score} pontos</span>
               <Star className="w-8 h-8 text-sun fill-sun" />
             </div>
-            <Button size="lg" className="bg-gradient-hero font-bold rounded-2xl px-8 py-6 text-lg" onClick={() => { setCurrent(0); setScore(0); setFinished(false); initQuestion(0); }}>
-              Jogar novamente 🔄
-            </Button>
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+              <Button size="lg" className="bg-gradient-hero font-bold rounded-2xl px-8 py-6 text-lg" onClick={() => { setCurrent(0); setScore(0); setFinished(false); initQuestion(0); }}>
+                Jogar novamente 🔄
+              </Button>
+              <Button size="lg" className="bg-gradient-hero font-bold rounded-2xl px-8 py-6 text-lg" onClick={handleGoNextModule}>
+                Próximo módulo ▶️
+              </Button>
+            </div>
           </motion.div>
         </div>
       </div>
