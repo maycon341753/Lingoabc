@@ -497,6 +497,13 @@ const LessonPage = () => {
     run();
   }, [finished, user?.id, materia, modulo, lessonId, score]);
 
+  useEffect(() => {
+    if (!finished) return;
+    const key = "pointsTotal";
+    const cur = Number(window.localStorage.getItem(key) || "0");
+    window.localStorage.setItem(key, String(cur + Number(score || 0)));
+  }, [finished, score]);
+
   if (finished) {
     const modulesOrder = ["Descoberta", "Construção", "Desenvolvimento", "Domínio"];
     const currentIdx = Math.max(0, modulesOrder.findIndex((m) => m === modulo));

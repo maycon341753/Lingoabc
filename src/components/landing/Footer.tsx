@@ -1,7 +1,10 @@
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import mascot from "@/assets/mascot-owl.png";
+import { useAuth } from "@/contexts/AuthContext";
 
 const Footer = () => {
+  const { userLabel } = useAuth();
+  const navigate = useNavigate();
   return (
     <footer className="py-12 px-4 border-t border-border">
       <div className="container mx-auto max-w-6xl">
@@ -22,7 +25,20 @@ const Footer = () => {
             <h4 className="font-display font-bold mb-3">Plataforma</h4>
             <ul className="space-y-2 text-sm text-muted-foreground">
               <li><Link to="/planos" className="hover:text-primary transition-colors">Planos</Link></li>
-              <li><Link to="/modulos" className="hover:text-primary transition-colors">Módulos</Link></li>
+              <li>
+                <Link
+                  to="/modulos"
+                  className="hover:text-primary transition-colors"
+                  onClick={(e) => {
+                    if (!userLabel) {
+                      e.preventDefault();
+                      navigate("/login");
+                    }
+                  }}
+                >
+                  Módulos
+                </Link>
+              </li>
               <li><Link to="/sobre" className="hover:text-primary transition-colors">Sobre</Link></li>
             </ul>
           </div>

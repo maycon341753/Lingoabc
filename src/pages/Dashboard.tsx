@@ -77,7 +77,11 @@ const DashboardPage = () => {
 
       const completed = (progressRows ?? []).filter((r: { status: string | null }) => (r.status ?? "").toLowerCase() === "completed");
       setCompletedActivities(completed.length);
-      const pts = completed.reduce((sum: number, r: { score: number | null }) => sum + Number(r.score ?? 0), 0);
+      let pts = completed.reduce((sum: number, r: { score: number | null }) => sum + Number(r.score ?? 0), 0);
+      if ((progressRows ?? []).length === 0) {
+        const raw = window.localStorage.getItem("pointsTotal");
+        pts = Number(raw || "0");
+      }
       setPoints(pts);
       const days = Array.from(new Set(completed.map((r: { created_at: string }) => new Date(r.created_at).toDateString())))
         .map((d) => new Date(d).getTime())
