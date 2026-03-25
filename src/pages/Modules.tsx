@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Lock, Star, CheckCircle, BookOpen, Calculator, Globe } from "lucide-react";
 import Navbar from "@/components/landing/Navbar";
@@ -23,16 +23,35 @@ const generateLessons = (count: number) =>
   Array.from({ length: count }, (_, i) => ({
     id: i + 1,
     title: `Lição ${i + 1}`,
-    completed: i < 3,
-    locked: i > 5,
   }));
 
 const ModulesPage = () => {
   const [selectedModule, setSelectedModule] = useState(0);
   const [selectedSubject, setSelectedSubject] = useState("math");
-  const lessons = generateLessons(40);
+  const [perfectIds, setPerfectIds] = useState<number[]>([]);
   const navigate = useNavigate();
   const { loading, user, hasSubscription, isAdmin } = useAuth();
+
+  useEffect(() => {
+    const moduleName = modules[selectedModule]?.name ?? "Descoberta";
+    const key = `progressPerfect:${selectedSubject}:${moduleName}`;
+    try {
+      const raw = window.localStorage.getItem(key);
+      const arr = raw ? (JSON.parse(raw) as number[]) : [];
+      setPerfectIds(Array.isArray(arr) ? arr : []);
+    } catch {
+      setPerfectIds([]);
+    }
+  }, [selectedModule, selectedSubject]);
+
+  const lessons = useMemo(() => {
+    const base = generateLessons(40);
+    return base.map((l) => {
+      const completed = perfectIds.includes(l.id);
+      const locked = l.id > 1 && !perfectIds.includes(l.id - 1);
+      return { ...l, completed, locked };
+    });
+  }, [perfectIds]);
 
   return (
     <div className="min-h-screen">

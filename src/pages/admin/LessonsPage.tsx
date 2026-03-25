@@ -38,6 +38,7 @@ const LessonsPage = () => {
   const [lessonModuleId, setLessonModuleId] = useState<string>("");
   const [lessonPosition, setLessonPosition] = useState<number>(1);
   const [lessonActive, setLessonActive] = useState(true);
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -47,7 +48,9 @@ const LessonsPage = () => {
         supabase.from("lessons").select("id,title,position,active,module_id,modules(title)").order("position"),
       ]);
       if (!mounted) return;
-      setModules((modulesData ?? []) as ModuleOption[]);
+      const mods = (modulesData ?? []) as ModuleOption[];
+      setModules(mods);
+      setLessonModuleId((prev) => prev || mods[0]?.id || "");
       const mapped: LessonRow[] =
         ((lessonsData ?? []) as LessonSelectRow[]).map((r) => ({
           id: r.id,
@@ -67,12 +70,31 @@ const LessonsPage = () => {
 
   return (
     <div>
-      <h1 className="text-2xl font-display font-extrabold mb-6">Lições ⚙️</h1>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
+        <h1 className="text-2xl font-display font-extrabold">Lições ⚙️</h1>
+        <Button
+          className="bg-gradient-hero rounded-xl font-bold"
+          type="button"
+          onClick={() => {
+            const moduleId = lessonModuleId || modules[0]?.id || "";
+            const nextPosition =
+              Math.max(0, ...lessonsData.filter((l) => l.module_id === moduleId).map((l) => l.position)) + 1;
+            setEditingLessonId(null);
+            setLessonTitle("");
+            setLessonModuleId(moduleId);
+            setLessonPosition(nextPosition || 1);
+            setLessonActive(true);
+            setLessonDialogOpen(true);
+          }}
+        >
+          Nova lição
+        </Button>
+      </div>
 
       <Dialog open={lessonDialogOpen} onOpenChange={setLessonDialogOpen}>
         <DialogContent className="sm:max-w-xl">
           <DialogHeader>
-            <DialogTitle>Editar lição</DialogTitle>
+            <DialogTitle>{editingLessonId ? "Editar lição" : "Criar lição"}</DialogTitle>
           </DialogHeader>
           <div className="grid gap-4">
             <div className="grid gap-2">
@@ -117,43 +139,75 @@ const LessonsPage = () => {
           </div>
 
           <DialogFooter className="sm:justify-end">
-            <Button variant="outline" className="rounded-xl" type="button" onClick={() => setLessonDialogOpen(false)}>
+            <Button variant="outline" className="rounded-xl" type="button" onClick={() => setLessonDialogOpen(false)} disabled={saving}>
               Cancelar
             </Button>
             <Button
               className="bg-gradient-hero rounded-xl font-bold"
               type="button"
+              disabled={saving}
               onClick={async () => {
-                if (editingLessonId === null) {
+                if (!lessonTitle.trim()) {
+                  alert("Informe um título.");
+                  return;
+                }
+                if (!lessonModuleId) {
+                  alert("Selecione um módulo.");
+                  return;
+                }
+
+                setSaving(true);
+
+                if (!editingLessonId) {
+                  const ins = await supabase
+                    .from("lessons")
+                    .insert({ title: lessonTitle.trim(), module_id: lessonModuleId, position: lessonPosition, active: lessonActive })
+                    .select("id,title,position,active,module_id")
+                    .single();
+                  if (ins.error) {
+                    alert(ins.error.message);
+                    setSaving(false);
+                    return;
+                  }
+                  const moduleTitle = modules.find((m) => m.id === ins.data.module_id)?.title ?? "-";
+                  setLessonsData((prev) =>
+                    [...prev, { ...ins.data, module_title: moduleTitle } as LessonRow].sort((a, b) => a.position - b.position),
+                  );
+                  setSaving(false);
                   setLessonDialogOpen(false);
                   return;
                 }
+
                 const upd = await supabase
                   .from("lessons")
-                  .update({ title: lessonTitle, module_id: lessonModuleId, position: lessonPosition, active: lessonActive })
+                  .update({ title: lessonTitle.trim(), module_id: lessonModuleId, position: lessonPosition, active: lessonActive })
                   .eq("id", editingLessonId);
                 if (upd.error) {
                   alert(upd.error.message);
+                  setSaving(false);
                   return;
                 }
                 setLessonsData((prev) =>
-                  prev.map((l) =>
-                    l.id === editingLessonId
-                      ? {
-                          ...l,
-                          title: lessonTitle,
-                          module_id: lessonModuleId,
-                          module_title: modules.find((m) => m.id === lessonModuleId)?.title ?? l.module_title,
-                          position: lessonPosition,
-                          active: lessonActive,
-                        }
-                      : l,
-                  ),
+                  prev
+                    .map((l) =>
+                      l.id === editingLessonId
+                        ? {
+                            ...l,
+                            title: lessonTitle.trim(),
+                            module_id: lessonModuleId,
+                            module_title: modules.find((m) => m.id === lessonModuleId)?.title ?? l.module_title,
+                            position: lessonPosition,
+                            active: lessonActive,
+                          }
+                        : l,
+                    )
+                    .sort((a, b) => a.position - b.position),
                 );
+                setSaving(false);
                 setLessonDialogOpen(false);
               }}
             >
-              Salvar
+              {saving ? "Salvando..." : "Salvar"}
             </Button>
           </DialogFooter>
         </DialogContent>

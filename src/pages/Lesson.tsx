@@ -262,6 +262,8 @@ const LessonPage = () => {
   const { loading, user, hasSubscription } = useAuth();
   const [searchParams] = useSearchParams();
   const materia = (searchParams.get("materia") || "math").toLowerCase();
+  const modulo = searchParams.get("modulo") || "Descoberta";
+  const lessonId = Number(searchParams.get("licao") || "1");
 
   useEffect(() => {
     if (!loading && user && !hasSubscription) {
@@ -446,6 +448,21 @@ const LessonPage = () => {
     setCurrent(0);
     initQuestion(0);
   }, [initQuestion]);
+
+  useEffect(() => {
+    if (!finished) return;
+    try {
+      const key = `progress:${materia}:${modulo}`;
+      const perfectKey = `progressPerfect:${materia}:${modulo}`;
+      const raw = window.localStorage.getItem(perfectKey);
+      const arr = raw ? (JSON.parse(raw) as number[]) : [];
+      const allPoints = questions.length * 20;
+      if (score === allPoints && !arr.includes(lessonId)) {
+        arr.push(lessonId);
+        window.localStorage.setItem(perfectKey, JSON.stringify(arr));
+      }
+    } catch {}
+  }, [finished, materia, modulo, lessonId]);
 
   if (finished) {
     return (
