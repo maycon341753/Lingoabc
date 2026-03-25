@@ -85,7 +85,7 @@ const ModulesPreview = () => {
                 </p>
                 <div className="flex items-center justify-between text-sm">
                   <span className="flex items-center gap-1 text-sun font-bold">
-                    <Star className="w-4 h-4 fill-sun" /> {m.lessons} lições
+                    <Star className="w-4 h-4 fill-sun" /> + de 100 lições
                   </span>
                   <span className="flex items-center gap-1 text-muted-foreground">
                     <Lock className="w-3 h-3" /> Premium

@@ -6,6 +6,7 @@ import Navbar from "@/components/landing/Navbar";
 import confetti from "@/lib/confetti";
 import { useSearchParams } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/lib/supabase";
 
 type LessonType = "multiple_choice" | "drag_order" | "complete_word" | "image_match";
 
@@ -452,7 +453,6 @@ const LessonPage = () => {
   useEffect(() => {
     if (!finished) return;
     try {
-      const key = `progress:${materia}:${modulo}`;
       const perfectKey = `progressPerfect:${materia}:${modulo}`;
       const raw = window.localStorage.getItem(perfectKey);
       const arr = raw ? (JSON.parse(raw) as number[]) : [];
@@ -461,8 +461,40 @@ const LessonPage = () => {
         arr.push(lessonId);
         window.localStorage.setItem(perfectKey, JSON.stringify(arr));
       }
-    } catch {}
-  }, [finished, materia, modulo, lessonId]);
+    } catch {
+      return;
+    }
+  }, [finished, materia, modulo, lessonId, questions.length, score]);
+
+  useEffect(() => {
+    if (!finished) return;
+    const run = async () => {
+      if (!user?.id) return;
+      const payload = {
+        user_id: user.id,
+        subject: materia,
+        module: modulo,
+        lesson_id: lessonId,
+        status: "completed",
+        score,
+      };
+      const { data: existing } = await supabase
+        .from("user_activity_progress")
+        .select("id,score")
+        .eq("user_id", user.id)
+        .eq("subject", materia)
+        .eq("module", modulo)
+        .eq("lesson_id", lessonId)
+        .limit(1);
+      const row = (existing ?? [])[0] as { id: number; score: number } | undefined;
+      if (!row) {
+        await supabase.from("user_activity_progress").insert(payload);
+      } else if (Number(row.score ?? 0) < Number(score)) {
+        await supabase.from("user_activity_progress").update({ score }).eq("id", row.id);
+      }
+    };
+    run();
+  }, [finished, user?.id, materia, modulo, lessonId, score]);
 
   if (finished) {
     return (

@@ -13,6 +13,12 @@ type UserPlanRow = {
   subscription_status: string | null;
 };
 
+type SubscriptionWithPlanRow = {
+  status: string | null;
+  expires_at: string | null;
+  plans: { name: string | null } | null;
+};
+
 const DashboardPage = () => {
   const navigate = useNavigate();
   const [welcomeName, setWelcomeName] = useState<string>("estudante");
@@ -21,6 +27,7 @@ const DashboardPage = () => {
   const [completedActivities, setCompletedActivities] = useState<number>(0);
   const [streakDays, setStreakDays] = useState<number>(0);
   const [planName, setPlanName] = useState<string | null>(null);
+  const [planStatus, setPlanStatus] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -33,21 +40,46 @@ const DashboardPage = () => {
         setLoading(false);
         return;
       }
-      const [{ data: planRow }, { count: lessonsCount }, { data: progressRows }] = await Promise.all([
-        supabase.from("v_user_profile_plan").select("*").eq("user_id", uid).maybeSingle(),
-        supabase.from("lessons").select("id", { count: "exact", head: true }),
+      const lessonsTryActive = supabase.from("lessons").select("id", { count: "exact", head: true }).eq("active", true);
+      const [{ data: planRow, error: planError }, lessonsTry, { data: progressRows }] = await Promise.all([
+        supabase.from("v_user_profile_plan").select("user_id,name,plan_name,subscription_status").eq("user_id", uid).maybeSingle(),
+        lessonsTryActive,
         supabase.from("user_activity_progress").select("status,score,created_at").eq("user_id", uid),
       ]);
       if (!mounted) return;
       const pr = planRow as UserPlanRow | null;
       setWelcomeName(pr?.name ?? "estudante");
-      setPlanName(pr?.plan_name ?? null);
-      setLessonsTotal(lessonsCount ?? 0);
+      const planNameFromView = pr?.plan_name ?? null;
+      const planStatusFromView = pr?.subscription_status ?? null;
+
+      if (!planError && planNameFromView) {
+        setPlanName(planNameFromView);
+        setPlanStatus(planStatusFromView);
+      } else {
+        const { data: subRow } = await supabase
+          .from("subscriptions")
+          .select("status,expires_at,plans(name)")
+          .eq("user_id", uid)
+          .order("expires_at", { ascending: false, nullsFirst: false })
+          .limit(1)
+          .maybeSingle();
+        if (!mounted) return;
+        const row = subRow as SubscriptionWithPlanRow | null;
+        setPlanName(row?.plans?.name ?? null);
+        setPlanStatus(row?.status ?? null);
+      }
+
+      const lessonsCount = lessonsTry.error
+        ? await supabase.from("lessons").select("id", { count: "exact", head: true })
+        : lessonsTry;
+      if (!mounted) return;
+      setLessonsTotal((lessonsCount as { count: number | null }).count ?? 0);
+
       const completed = (progressRows ?? []).filter((r: { status: string | null }) => (r.status ?? "").toLowerCase() === "completed");
       setCompletedActivities(completed.length);
-      const pts = (progressRows ?? []).reduce((sum: number, r: { score: number | null }) => sum + Number(r.score ?? 0), 0);
+      const pts = completed.reduce((sum: number, r: { score: number | null }) => sum + Number(r.score ?? 0), 0);
       setPoints(pts);
-      const days = Array.from(new Set((progressRows ?? []).map((r: { created_at: string }) => new Date(r.created_at).toDateString())))
+      const days = Array.from(new Set(completed.map((r: { created_at: string }) => new Date(r.created_at).toDateString())))
         .map((d) => new Date(d).getTime())
         .sort((a, b) => b - a);
       let streak = 0;
@@ -114,7 +146,16 @@ const DashboardPage = () => {
 
           <motion.div className="bg-card rounded-3xl shadow-card p-6" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }}>
             <h3 className="font-display font-bold text-lg mb-2">Seu plano</h3>
-            <p className="text-sm text-muted-foreground">{planName ?? "Sem plano ativo"}</p>
+            {loading ? (
+              <p className="text-sm text-muted-foreground">Carregando…</p>
+            ) : planName ? (
+              <p className="text-sm text-muted-foreground">{planName}</p>
+            ) : (
+              <p className="text-sm text-muted-foreground">Sem plano ativo</p>
+            )}
+            {!loading && planName && planStatus && (
+              <p className="text-xs text-muted-foreground mt-1">Status: {planStatus}</p>
+            )}
           </motion.div>
         </div>
 
