@@ -37,6 +37,20 @@ type SubscriptionWithPlanRow = {
   } | null;
 };
 
+const withTimeout = async <T,>(p: Promise<T>, ms: number) => {
+  let t: number | null = null;
+  try {
+    return await Promise.race([
+      p,
+      new Promise<T>((_, reject) => {
+        t = window.setTimeout(() => reject(new Error("timeout")), ms);
+      }),
+    ]);
+  } finally {
+    if (t != null) window.clearTimeout(t);
+  }
+};
+
 const buildApiUrl = (path: string) => {
   if (typeof window !== "undefined") {
     const host = window.location.hostname;
@@ -52,6 +66,7 @@ const ProfilePage = () => {
   const [profile, setProfile] = useState<ProfileRow | null>(null);
   const [plan, setPlan] = useState<ProfilePlanRow | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
   const navigate = useNavigate();
   const { signOut } = useAuth();
@@ -62,60 +77,80 @@ const ProfilePage = () => {
     (statusNorm === "active" || statusNorm === "ativa") && expiresAtMs != null && Number.isFinite(expiresAtMs) && expiresAtMs > Date.now();
 
   const load = useCallback(async (mountedRef?: { current: boolean }) => {
+      setLoadError(null);
       setLoading(true);
-      const { data } = await supabase.auth.getUser();
-      if (mountedRef && !mountedRef.current) return;
+      try {
+        const { data } = await withTimeout(supabase.auth.getUser(), 15000);
+        if (mountedRef && !mountedRef.current) return;
 
-      if (!data.user) {
-        setEmail(null);
-        setProfile(null);
+        if (!data.user) {
+          setEmail(null);
+          setProfile(null);
+          setPlan(null);
+          setLoading(false);
+          navigate("/login");
+          return;
+        }
+
+        const uid = data.user.id;
+        setEmail(data.user.email ?? null);
+
+        const [{ data: profileData }, { data: planData, error: planError }] = await withTimeout(
+          Promise.all([
+            supabase.from("profiles").select("name, cpf, role").eq("id", uid).maybeSingle(),
+            supabase
+              .from("v_user_profile_plan")
+              .select("plan_name, plan_code, period_months, price, billing_cycle, subscription_status, started_at, expires_at, value")
+              .eq("user_id", uid)
+              .maybeSingle(),
+          ]),
+          15000,
+        );
+        if (mountedRef && !mountedRef.current) return;
+
+        setProfile(profileData ?? null);
+
+        if (!planError && planData) {
+          setPlan(planData ?? null);
+          setLoading(false);
+          return;
+        }
+
+        const { data: subRow } = await withTimeout(
+          supabase
+            .from("subscriptions")
+            .select("status,started_at,expires_at,value,plans(code,name,period_months,price,billing_cycle)")
+            .eq("user_id", uid)
+            .order("expires_at", { ascending: false, nullsFirst: false })
+            .limit(1)
+            .maybeSingle(),
+          15000,
+        );
+        if (mountedRef && !mountedRef.current) return;
+
+        if (subRow) {
+          const row = subRow as SubscriptionWithPlanRow;
+          const p = row.plans ?? null;
+          setPlan({
+            plan_name: p?.name ?? null,
+            plan_code: p?.code ?? null,
+            period_months: p?.period_months ?? null,
+            price: p?.price ?? null,
+            billing_cycle: p?.billing_cycle ?? null,
+            subscription_status: row.status ?? null,
+            started_at: row.started_at ?? null,
+            expires_at: row.expires_at ?? null,
+            value: row.value ?? null,
+          });
+        } else {
+          setPlan(null);
+        }
         setLoading(false);
-        navigate("/login");
-        return;
-      }
-
-      setEmail(data.user.email ?? null);
-      const { data: profileData } = await supabase.from("profiles").select("name, cpf, role").eq("id", data.user.id).maybeSingle();
-      if (mountedRef && !mountedRef.current) return;
-      setProfile(profileData ?? null);
-      const { data: planData, error: planError } = await supabase
-        .from("v_user_profile_plan")
-        .select("plan_name, plan_code, period_months, price, billing_cycle, subscription_status, started_at, expires_at, value")
-        .eq("user_id", data.user.id)
-        .maybeSingle();
-      if (mountedRef && !mountedRef.current) return;
-      if (!planError && planData) {
-        setPlan(planData ?? null);
+      } catch (e: unknown) {
+        if (mountedRef && !mountedRef.current) return;
         setLoading(false);
-        return;
+        setLoadError(e instanceof Error ? e.message : "Falha ao carregar");
       }
-
-      const { data: subRow } = await supabase
-        .from("subscriptions")
-        .select("status,started_at,expires_at,value,plans(code,name,period_months,price,billing_cycle)")
-        .eq("user_id", data.user.id)
-        .order("expires_at", { ascending: false, nullsFirst: false })
-        .limit(1)
-        .maybeSingle();
-      if (mountedRef && !mountedRef.current) return;
-      if (subRow) {
-        const row = subRow as SubscriptionWithPlanRow;
-        const p = row.plans ?? null;
-        setPlan({
-          plan_name: p?.name ?? null,
-          plan_code: p?.code ?? null,
-          period_months: p?.period_months ?? null,
-          price: p?.price ?? null,
-          billing_cycle: p?.billing_cycle ?? null,
-          subscription_status: row.status ?? null,
-          started_at: row.started_at ?? null,
-          expires_at: row.expires_at ?? null,
-          value: row.value ?? null,
-        });
-      } else {
-        setPlan(null);
-      }
-      setLoading(false);
   }, [navigate]);
 
   useEffect(() => {
@@ -137,6 +172,13 @@ const ProfilePage = () => {
           <h1 className="text-2xl font-display font-extrabold">Meu Perfil</h1>
           {loading ? (
             <p className="mt-3 text-muted-foreground">Carregando...</p>
+          ) : loadError ? (
+            <div className="mt-3 space-y-3">
+              <p className="text-sm font-bold text-destructive">Falha ao carregar: {loadError}</p>
+              <Button className="rounded-xl" onClick={() => load()}>
+                Tentar novamente
+              </Button>
+            </div>
           ) : (
             <div className="mt-6 space-y-3">
               <div className="flex items-center justify-between gap-4">
