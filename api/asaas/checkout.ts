@@ -1,5 +1,4 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { createClient } from "@supabase/supabase-js";
 
 const baseUrl = (process.env.ASAAS_API_URL || "https://api.asaas.com/v3").replace(/\/+$/, "");
 
@@ -10,6 +9,21 @@ const isAllowedOrigin = (origin: string) => {
   if (/^https:\/\/[a-z0-9-]+\.vercel\.app$/i.test(origin)) return true;
   return false;
 };
+
+const decodeJwtPayload = (token: string) => {
+  try {
+    const part = token.split(".")[1] ?? "";
+    const normalized = part.replace(/-/g, "+").replace(/_/g, "/").padEnd(Math.ceil(part.length / 4) * 4, "=");
+    const json = Buffer.from(normalized, "base64").toString("utf8");
+    const obj = JSON.parse(json) as unknown;
+    if (typeof obj === "object" && obj !== null) return obj as Record<string, unknown>;
+    return null;
+  } catch {
+    return null;
+  }
+};
+
+const isUuid = (v: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v);
 
 async function fetchAsaas(path: string, method: string, apiKey: string, body?: unknown) {
   const res = await fetch(`${baseUrl}${path}`, {
@@ -45,27 +59,27 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   if (req.method === "OPTIONS") return res.status(204).end();
-  if (req.method !== "POST") return res.status(405).send("Method Not Allowed");
+  if (req.method !== "POST") return res.status(405).json({ error: "method_not_allowed" });
   const apiKeyRaw = process.env.ASSAS_API_KEY;
-  const supaUrl = process.env.SUPABASE_URL;
-  const supaServiceKey = process.env.SUPABASE_SERVICE_ROLE;
-  if (!apiKeyRaw || !supaUrl || !supaServiceKey) return res.status(500).send("Missing server environment variables");
+  if (!apiKeyRaw) return res.status(500).json({ error: "missing_server_env", required: ["ASSAS_API_KEY"] });
   const apiKey = String(apiKeyRaw).trim();
 
   const authHeader = pickFirstHeader(req.headers.authorization);
   const token = typeof authHeader === "string" ? authHeader.replace(/^Bearer\s+/i, "").trim() : "";
-  if (!token) return res.status(401).send("Missing Authorization");
+  if (!token) return res.status(401).json({ error: "missing_authorization" });
 
-  const supabaseAdmin = createClient(supaUrl, supaServiceKey);
-  const userTry = await supabaseAdmin.auth.getUser(token);
-  const user = userTry.data.user;
-  if (!user?.id) return res.status(401).send("Invalid user token");
+  const payload = decodeJwtPayload(token);
+  const userIdRaw = typeof payload?.sub === "string" ? String(payload.sub) : "";
+  const userId = userIdRaw && isUuid(userIdRaw) ? userIdRaw : "";
+  const tokenEmail = typeof payload?.email === "string" ? String(payload.email) : undefined;
+  if (!userId) return res.status(401).json({ error: "invalid_user_token" });
 
-  const { method, amount, description, customerName, customerCpfCnpj, installments, card } = req.body as {
+  const { method, amount, description, customerName, customerEmail, customerCpfCnpj, installments, card } = req.body as {
     method: "pix" | "card";
     amount: number;
     description: string;
     customerName: string;
+    customerEmail?: string;
     customerCpfCnpj?: string;
     installments?: number;
     card?: {
@@ -78,17 +92,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   };
 
   try {
-    const customerEmail = typeof user.email === "string" ? user.email : undefined;
+    const customerEmailFinal = tokenEmail || (typeof customerEmail === "string" ? customerEmail : undefined);
     let customerId: string | null = null;
-    if (customerEmail) {
-      const found = await fetchAsaas(`/customers?email=${encodeURIComponent(customerEmail)}`, "GET", apiKey);
+    if (customerEmailFinal) {
+      const found = await fetchAsaas(`/customers?email=${encodeURIComponent(customerEmailFinal)}`, "GET", apiKey);
       const list = Array.isArray(found?.data) ? found.data : Array.isArray(found) ? found : [];
       customerId = list[0]?.id ?? null;
     }
     if (!customerId) {
       const created = await fetchAsaas(`/customers`, "POST", apiKey, {
         name: customerName || "Cliente",
-        email: customerEmail,
+        email: customerEmailFinal,
         cpfCnpj: customerCpfCnpj,
       });
       customerId = created?.id;
@@ -105,7 +119,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         value: Number(amount || 0),
         dueDate,
         description: description || "Assinatura",
-        externalReference: user.id,
+        externalReference: userId,
       })) as { id?: string } | null;
       const paymentId = payment?.id ?? null;
       const qrCode = paymentId ? await fetchAsaas(`/payments/${paymentId}/pixQrCode`, "GET", apiKey) : null;
@@ -118,7 +132,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       value: Number(amount || 0),
       dueDate,
       description: description || "Assinatura",
-      externalReference: user.id,
+      externalReference: userId,
       installmentCount: Number(installments || 1),
       creditCard: {
         holderName: card?.holderName,

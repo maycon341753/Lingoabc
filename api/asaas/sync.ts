@@ -27,17 +27,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   if (req.method === "OPTIONS") return res.status(204).end();
-  if (req.method !== "POST") return res.status(405).send("Method Not Allowed");
+  if (req.method !== "POST") return res.status(405).json({ error: "method_not_allowed" });
 
   const apiKeyRaw = process.env.ASSAS_API_KEY;
   const supaUrl = process.env.SUPABASE_URL;
   const supaServiceKey = process.env.SUPABASE_SERVICE_ROLE;
-  if (!apiKeyRaw || !supaUrl || !supaServiceKey) return res.status(500).send("Missing server environment variables");
+  if (!apiKeyRaw || !supaUrl || !supaServiceKey) {
+    return res.status(500).json({ error: "missing_server_env", required: ["ASSAS_API_KEY", "SUPABASE_URL", "SUPABASE_SERVICE_ROLE"] });
+  }
   const apiKey = String(apiKeyRaw).trim();
 
   const authHeader = pickFirstHeader(req.headers.authorization);
   const token = isString(authHeader) ? authHeader.replace(/^Bearer\s+/i, "").trim() : "";
-  if (!token) return res.status(401).send("Missing Authorization");
+  if (!token) return res.status(401).json({ error: "missing_authorization" });
 
   const { paymentId } = (req.body ?? {}) as { paymentId?: unknown };
   if (!isString(paymentId) || !paymentId.trim()) return res.status(400).json({ error: "missing_paymentId" });
@@ -45,7 +47,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const supabaseAdmin = createClient(supaUrl, supaServiceKey);
   const userTry = await supabaseAdmin.auth.getUser(token);
   const user = userTry.data.user;
-  if (!user?.id) return res.status(401).send("Invalid user token");
+  if (!user?.id) return res.status(401).json({ error: "invalid_user_token" });
 
   const paymentResp = await fetch(`${asaasBaseUrl}/payments/${encodeURIComponent(paymentId)}`, {
     headers: { "User-Agent": "lingoabc", access_token: apiKey },

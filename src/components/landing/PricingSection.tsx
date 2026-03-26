@@ -207,7 +207,10 @@ const PricingSection = () => {
         body: JSON.stringify(body),
       });
       const data = await r.json().catch(() => null);
-      if (!r.ok) throw data;
+      if (!r.ok) {
+        if (data == null) throw { error: `http_${r.status}` };
+        throw data;
+      }
       if (targetMethod === "pix") {
         const paymentId = typeof data?.paymentId === "string" ? String(data.paymentId) : "";
         const code = String(data?.qrCode?.payload ?? "");
@@ -231,6 +234,16 @@ const PricingSection = () => {
       if (err instanceof TypeError) {
         setPaymentError("Falha de conexão com o servidor. Atualize a página e tente novamente.");
         return;
+      }
+      if (typeof err?.error === "string") {
+        if (err.error === "missing_authorization" || err.error === "invalid_user_token") {
+          setPaymentError("Sua sessão expirou. Faça login novamente.");
+          return;
+        }
+        if (err.error === "http_401") {
+          setPaymentError("Sua sessão expirou. Faça login novamente.");
+          return;
+        }
       }
       const msg =
         typeof err?.errors?.[0]?.description === "string"
@@ -596,8 +609,8 @@ const PricingSection = () => {
                     : "bg-gradient-hero text-primary-foreground"
                 }`}
                 onClick={() => {
-                  if (!userLabel) {
-                    navigate("/cadastro");
+                  if (!user) {
+                    navigate("/login");
                     return;
                   }
                   setSelectedPlan({ name: plan.name, price: plan.price });
