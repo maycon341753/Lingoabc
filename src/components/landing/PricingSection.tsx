@@ -119,9 +119,20 @@ const PricingSection = () => {
         navigate("/dashboard");
       }
     } catch (e: unknown) {
-      const err = e as { errors?: Array<{ description?: unknown }> } | null;
-      const msg = typeof err?.errors?.[0]?.description === "string" ? String(err.errors[0].description) : null;
-      setPaymentError(msg || "Falha ao gerar pagamento. Verifique o deploy no Vercel e tente novamente.");
+      const err = e as
+        | { errors?: Array<{ description?: unknown }>; error?: unknown; message?: unknown; raw?: unknown }
+        | null;
+      const msg =
+        typeof err?.errors?.[0]?.description === "string"
+          ? String(err.errors[0].description)
+          : typeof err?.message === "string"
+          ? String(err.message)
+          : typeof err?.error === "string"
+          ? String(err.error)
+          : typeof err?.raw === "string"
+          ? String(err.raw)
+          : null;
+      setPaymentError(msg || "Falha ao gerar pagamento. Tente novamente.");
     } finally {
       setProcessing(false);
     }

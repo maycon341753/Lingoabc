@@ -2,7 +2,7 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 
 const baseUrl = "https://api.asaas.com/api/v3";
 
-async function fetchAsaas(path: string, method: string, apiKey: string, body?: any) {
+async function fetchAsaas(path: string, method: string, apiKey: string, body?: unknown) {
   const res = await fetch(`${baseUrl}${path}`, {
     method,
     headers: {
@@ -12,7 +12,7 @@ async function fetchAsaas(path: string, method: string, apiKey: string, body?: a
     body: body ? JSON.stringify(body) : undefined,
   });
   const text = await res.text();
-  let json: any = null;
+  let json: unknown = null;
   try {
     json = JSON.parse(text);
   } catch {
@@ -26,15 +26,17 @@ async function fetchAsaas(path: string, method: string, apiKey: string, body?: a
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "POST") return res.status(405).send("Method Not Allowed");
-  const apiKey = process.env.ASSAS_API_KEY;
-  if (!apiKey) return res.status(500).send("Missing ASSAS_API_KEY");
+  const apiKeyRaw = process.env.ASSAS_API_KEY;
+  if (!apiKeyRaw) return res.status(500).send("Missing ASSAS_API_KEY");
+  const apiKey = String(apiKeyRaw).replace(/^\$/, "").trim();
 
-  const { method, amount, description, customerName, customerEmail, installments, card } = req.body as {
+  const { method, amount, description, customerName, customerEmail, customerCpfCnpj, installments, card } = req.body as {
     method: "pix" | "card";
     amount: number;
     description: string;
     customerName: string;
     customerEmail?: string;
+    customerCpfCnpj?: string;
     installments?: number;
     card?: {
       holderName: string;
@@ -56,30 +58,34 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const created = await fetchAsaas(`/customers`, "POST", apiKey, {
         name: customerName || "Cliente",
         email: customerEmail,
+        cpfCnpj: customerCpfCnpj,
       });
       customerId = created?.id;
     }
     if (!customerId) return res.status(400).json({ error: "customer_not_created" });
 
+    const now = new Date();
+    const dueDate = now.toISOString().slice(0, 10);
+
     if (method === "pix") {
-      const payment = await fetchAsaas(`/payments`, "POST", apiKey, {
+      const payment = (await fetchAsaas(`/payments`, "POST", apiKey, {
         customer: customerId,
         billingType: "PIX",
         value: Number(amount || 0),
+        dueDate,
         description: description || "Assinatura",
         externalReference: description || "Assinatura",
-      });
-      let qrCode: any = null;
-      try {
-        qrCode = await fetchAsaas(`/payments/${payment?.id}/pixQrCode`, "GET", apiKey);
-      } catch {}
-      return res.status(200).json({ paymentId: payment?.id, qrCode });
+      })) as { id?: string } | null;
+      const paymentId = payment?.id ?? null;
+      const qrCode = paymentId ? await fetchAsaas(`/payments/${paymentId}/pixQrCode`, "GET", apiKey) : null;
+      return res.status(200).json({ paymentId, qrCode });
     }
 
     const payment = await fetchAsaas(`/payments`, "POST", apiKey, {
       customer: customerId,
       billingType: "CREDIT_CARD",
       value: Number(amount || 0),
+      dueDate,
       description: description || "Assinatura",
       externalReference: description || "Assinatura",
       installmentCount: Number(installments || 1),
@@ -92,8 +98,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       },
     });
     return res.status(200).json(payment);
-  } catch (e: any) {
-    const status = e?.status ?? 400;
-    return res.status(status).json(e?.data ?? { error: "asaas_error" });
+  } catch (e: unknown) {
+    const err = e as { status?: unknown; data?: unknown } | null;
+    const status = typeof err?.status === "number" ? err.status : 400;
+    const payload = err?.data ?? { error: "asaas_error" };
+    return res.status(status).json(payload);
   }
 }
