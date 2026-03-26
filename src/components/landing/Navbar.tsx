@@ -8,7 +8,7 @@ import { useAuth } from "@/contexts/AuthContext";
 
 const Navbar = () => {
   const [open, setOpen] = useState(false);
-  const { userLabel, isAdmin, hasSubscription, signOut } = useAuth();
+  const { user, userLabel, isAdmin, hasSubscription, signOut } = useAuth();
   const navigate = useNavigate();
 
   return (
@@ -20,7 +20,7 @@ const Navbar = () => {
           onClick={(e) => {
             if (userLabel) {
               e.preventDefault();
-              navigate("/dashboard");
+              navigate("/usuario/dashboard");
             }
           }}
         >
@@ -60,11 +60,11 @@ const Navbar = () => {
                   Admin
                 </Button>
               )}
-              <Button variant="outline" className="rounded-xl font-bold" onClick={() => navigate("/dashboard")}>
+              <Button variant="outline" className="rounded-xl font-bold" onClick={() => navigate("/usuario/dashboard")}>
                 Dashboard
               </Button>
               {!hasSubscription && (
-                <Button className="bg-gradient-hero rounded-xl font-bold" onClick={() => navigate("/planos")}>
+                <Button className="bg-gradient-hero rounded-xl font-bold" onClick={() => navigate(user ? "/usuario/planos" : "/planos")}>
                   Assinar Plano
                 </Button>
               )}
@@ -155,14 +155,14 @@ const Navbar = () => {
                       Admin
                     </Button>
                   )}
-                  <Button variant="outline" className="rounded-xl font-bold" onClick={() => { navigate("/dashboard"); setOpen(false); }}>
+                  <Button variant="outline" className="rounded-xl font-bold" onClick={() => { navigate("/usuario/dashboard"); setOpen(false); }}>
                     Dashboard
                   </Button>
                   {!hasSubscription && (
                     <Button
                       className="bg-gradient-hero rounded-xl font-bold"
                       onClick={() => {
-                        navigate("/planos");
+                        navigate(user ? "/usuario/planos" : "/planos");
                         setOpen(false);
                       }}
                     >

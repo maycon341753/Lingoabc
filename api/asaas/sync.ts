@@ -17,6 +17,21 @@ const normalizeStatus = (v: unknown) => String(v ?? "").toLowerCase();
 
 const isConfirmedStatus = (s: string) => ["confirmed", "received", "received_in_cash"].includes(s);
 
+const decodeJwtPayload = (token: string) => {
+  try {
+    const part = token.split(".")[1] ?? "";
+    const normalized = part.replace(/-/g, "+").replace(/_/g, "/").padEnd(Math.ceil(part.length / 4) * 4, "=");
+    const json = Buffer.from(normalized, "base64").toString("utf8");
+    const obj = JSON.parse(json) as unknown;
+    if (typeof obj === "object" && obj !== null) return obj as Record<string, unknown>;
+    return null;
+  } catch {
+    return null;
+  }
+};
+
+const isUuid = (v: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v);
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const origin = pickFirstHeader(req.headers.origin);
   if (origin && isAllowedOrigin(origin)) {
@@ -45,9 +60,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (!isString(paymentId) || !paymentId.trim()) return res.status(400).json({ error: "missing_paymentId" });
 
   const supabaseAdmin = createClient(supaUrl, supaServiceKey);
-  const userTry = await supabaseAdmin.auth.getUser(token);
-  const user = userTry.data.user;
-  if (!user?.id) return res.status(401).json({ error: "invalid_user_token" });
+  const payload = decodeJwtPayload(token);
+  const userIdRaw = typeof payload?.sub === "string" ? String(payload.sub) : "";
+  const userId = userIdRaw && isUuid(userIdRaw) ? userIdRaw : "";
+  if (!userId) return res.status(401).json({ error: "invalid_user_token" });
 
   const paymentResp = await fetch(`${asaasBaseUrl}/payments/${encodeURIComponent(paymentId)}`, {
     headers: { "User-Agent": "lingoabc", access_token: apiKey },
@@ -67,8 +83,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const confirmedDate =
     (paymentObj["confirmedDate"] ?? paymentObj["paymentDate"] ?? paymentObj["effectiveDate"] ?? null) as unknown;
   const receivedDateIso = isString(confirmedDate) && confirmedDate ? confirmedDate : new Date().toISOString();
-  const description = String(paymentObj["description"] ?? paymentObj["externalReference"] ?? "Assinatura");
+  const description = String(paymentObj["description"] ?? "Assinatura");
+  const externalReference = typeof paymentObj["externalReference"] === "string" ? String(paymentObj["externalReference"]) : "";
   const value = Number(paymentObj["value"] ?? paymentObj["amount"] ?? 0);
+
+  const ext = externalReference.trim();
+  const extLooksLikeUuid = ext && isUuid(ext);
+  if (extLooksLikeUuid && ext !== userId) {
+    return res.status(403).json({ error: "forbidden_payment_owner" });
+  }
 
   const confirmed = isConfirmedStatus(statusRaw);
   const status = confirmed ? "active" : "pending";
@@ -101,7 +124,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const up = await supabaseAdmin
     .from("subscriptions")
     .upsert({
-      user_id: user.id,
+      user_id: userId,
       plan_id: planId,
       status,
       value: amount,

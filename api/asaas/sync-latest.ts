@@ -30,6 +30,21 @@ type AsaasPaymentsResponse = { data?: unknown };
 const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null;
 const isString = (v: unknown): v is string => typeof v === "string";
 
+const decodeJwtPayload = (token: string) => {
+  try {
+    const part = token.split(".")[1] ?? "";
+    const normalized = part.replace(/-/g, "+").replace(/_/g, "/").padEnd(Math.ceil(part.length / 4) * 4, "=");
+    const json = Buffer.from(normalized, "base64").toString("utf8");
+    const obj = JSON.parse(json) as unknown;
+    if (typeof obj === "object" && obj !== null) return obj as Record<string, unknown>;
+    return null;
+  } catch {
+    return null;
+  }
+};
+
+const isUuid = (v: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v);
+
 async function fetchJson(url: string, apiKey: string) {
   const r = await fetch(url, { headers: { "User-Agent": "lingoabc", access_token: apiKey } });
   const text = await r.text();
@@ -67,11 +82,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (!token) return res.status(401).json({ error: "missing_authorization" });
 
   const supabaseAdmin = createClient(supaUrl, supaServiceKey);
-  const userTry = await supabaseAdmin.auth.getUser(token);
-  const user = userTry.data.user;
-  if (!user?.id) return res.status(401).json({ error: "invalid_user_token" });
+  const payload = decodeJwtPayload(token);
+  const userIdRaw = typeof payload?.sub === "string" ? String(payload.sub) : "";
+  const userId = userIdRaw && isUuid(userIdRaw) ? userIdRaw : "";
+  const email = typeof payload?.email === "string" ? String(payload.email).trim().toLowerCase() : "";
+  if (!userId) return res.status(401).json({ error: "invalid_user_token" });
 
-  const email = String(user.email ?? "").trim().toLowerCase();
   if (!email) return res.status(400).json({ error: "missing_user_email" });
 
   const customers = await fetchJson(`${asaasBaseUrl}/customers?email=${encodeURIComponent(email)}&limit=1`, apiKey);
@@ -111,7 +127,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const latest = confirmedPayments[0] as AsaasPayment;
 
   const paymentId = isString(latest.id) ? (latest.id as string) : null;
-  const description = String(latest.description ?? latest.externalReference ?? "Assinatura");
+  const description = String(latest.description ?? "Assinatura");
+  const externalReference = isString(latest.externalReference) ? String(latest.externalReference) : "";
   const value = Number(latest.value ?? 0);
   const receivedDateIso =
     (isString(latest.confirmedDate) && latest.confirmedDate) ||
@@ -119,6 +136,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     (isString(latest.effectiveDate) && latest.effectiveDate) ||
     (isString(latest.dateCreated) && latest.dateCreated) ||
     new Date().toISOString();
+
+  const ext = externalReference.trim();
+  const extLooksLikeUuid = ext && isUuid(ext);
+  if (extLooksLikeUuid && ext !== userId) {
+    return res.status(403).json({ error: "forbidden_payment_owner" });
+  }
 
   const { data: planExact } = await supabaseAdmin
     .from("plans")
@@ -147,7 +170,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const up = await supabaseAdmin
     .from("subscriptions")
     .upsert({
-      user_id: user.id,
+      user_id: userId,
       plan_id: planId,
       status: "active",
       value: amount,

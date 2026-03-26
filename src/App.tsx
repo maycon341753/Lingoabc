@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Route, Routes } from "react-router-dom";
+import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -15,6 +15,7 @@ import Dashboard from "./pages/Dashboard.tsx";
 import Referral from "./pages/Referral.tsx";
 import Admin from "./pages/Admin.tsx";
 import Profile from "./pages/Profile.tsx";
+import UserPlans from "./pages/UserPlans.tsx";
 import NotFound from "./pages/NotFound.tsx";
 
 import { AuthProvider } from "./contexts/AuthContext";
@@ -33,11 +34,13 @@ const App = () => (
           <Route path="/modulos" element={<Modules />} />
           <Route path="/licao" element={<Lesson />} />
           <Route path="/planos" element={<Plans />} />
+          <Route path="/usuario/planos" element={<UserPlans />} />
+          <Route path="/usuario/dashboard" element={<Dashboard />} />
           <Route path="/videos" element={<Videos />} />
           <Route path="/sobre" element={<About />} />
           <Route path="/login" element={<Login />} />
           <Route path="/cadastro" element={<Register />} />
-          <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/dashboard" element={<Navigate to="/usuario/dashboard" replace />} />
           <Route path="/indicacao" element={<Referral />} />
           <Route path="/admin/*" element={<Admin />} />
           <Route path="/perfil" element={<Profile />} />

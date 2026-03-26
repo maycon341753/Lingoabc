@@ -156,8 +156,10 @@ const PricingSection = () => {
     setPaymentError(null);
     setProcessing(true);
     if (targetMethod === "pix") setPixPaymentId(null);
-    const { data: sessionData } = await supabase.auth.getSession();
-    const token = sessionData.session?.access_token;
+    let token = (await supabase.auth.getSession()).data.session?.access_token;
+    if (!token && user) {
+      token = (await supabase.auth.refreshSession()).data.session?.access_token;
+    }
     if (!token) {
       setProcessing(false);
       setPaymentError("Faça login novamente para continuar.");
@@ -224,7 +226,7 @@ const PricingSection = () => {
         setPaymentOpen(false);
         setSuccessOpen(true);
         window.setTimeout(() => {
-          navigate("/dashboard");
+          navigate("/usuario/dashboard");
         }, 1200);
       }
     } catch (e: unknown) {
@@ -259,7 +261,7 @@ const PricingSection = () => {
     } finally {
       setProcessing(false);
     }
-  }, [cardCvv, cardExpiry, cardName, cardNumber, installments, navigate, selectedPlan?.name, selectedPlan?.price, user?.email, user?.id, userLabel]);
+  }, [cardCvv, cardExpiry, cardName, cardNumber, installments, navigate, selectedPlan?.name, selectedPlan?.price, user, userLabel]);
 
   useEffect(() => {
     if (!paymentOpen) {
@@ -289,14 +291,27 @@ const PricingSection = () => {
     const startedAt = Date.now();
 
     const check = async () => {
-      const { data: sessionData } = await supabase.auth.getSession();
-      const token = sessionData.session?.access_token;
+      let token = (await supabase.auth.getSession()).data.session?.access_token;
+      if (!token && user) {
+        token = (await supabase.auth.refreshSession()).data.session?.access_token;
+      }
       if (token) {
         const syncResp = await fetch(buildApiUrl("/api/asaas/sync"), {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
           body: JSON.stringify({ paymentId: pixPaymentId }),
         });
+        if (!syncResp.ok) {
+          const errJson = await syncResp.json().catch(() => null);
+          const errMsg =
+            typeof errJson?.error === "string"
+              ? String(errJson.error)
+              : typeof errJson?.message === "string"
+              ? String(errJson.message)
+              : `http_${syncResp.status}`;
+          setPaymentError(errMsg);
+          return;
+        }
         const syncJson = await syncResp.json().catch(() => null);
         if (!mounted) return;
         const syncedStatus = String(syncJson?.status ?? "").toLowerCase();
@@ -305,7 +320,7 @@ const PricingSection = () => {
           setPaymentOpen(false);
           setSuccessOpen(true);
           window.setTimeout(() => {
-            navigate("/dashboard");
+            navigate("/usuario/dashboard");
           }, 1200);
           return;
         }
@@ -316,6 +331,17 @@ const PricingSection = () => {
             headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
             body: JSON.stringify({}),
           });
+          if (!latestResp.ok) {
+            const errJson = await latestResp.json().catch(() => null);
+            const errMsg =
+              typeof errJson?.error === "string"
+                ? String(errJson.error)
+                : typeof errJson?.message === "string"
+                ? String(errJson.message)
+                : `http_${latestResp.status}`;
+            setPaymentError(errMsg);
+            return;
+          }
           const latestJson = await latestResp.json().catch(() => null);
           if (!mounted) return;
           const latestStatus = String(latestJson?.status ?? "").toLowerCase();
@@ -324,7 +350,7 @@ const PricingSection = () => {
             setPaymentOpen(false);
             setSuccessOpen(true);
             window.setTimeout(() => {
-              navigate("/dashboard");
+              navigate("/usuario/dashboard");
             }, 1200);
             return;
           }
@@ -348,7 +374,7 @@ const PricingSection = () => {
         setPaymentOpen(false);
         setSuccessOpen(true);
         window.setTimeout(() => {
-          navigate("/dashboard");
+          navigate("/usuario/dashboard");
         }, 1200);
       }
     };
@@ -376,7 +402,7 @@ const PricingSection = () => {
       mounted = false;
       if (timer != null) window.clearTimeout(timer);
     };
-  }, [method, navigate, paymentOpen, pixCode, pixPaymentId, pixQrImage, user?.id, waitingConfirmation]);
+  }, [method, navigate, paymentOpen, pixCode, pixPaymentId, pixQrImage, user, user?.id, waitingConfirmation]);
   return (
     <section className="py-20 px-4 bg-card">
       <Dialog open={successOpen} onOpenChange={setSuccessOpen}>
@@ -391,7 +417,7 @@ const PricingSection = () => {
               type="button"
               onClick={() => {
                 setSuccessOpen(false);
-                navigate("/dashboard");
+                navigate("/usuario/dashboard");
               }}
             >
               Ir para o painel

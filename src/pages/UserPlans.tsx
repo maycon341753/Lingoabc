@@ -5,15 +5,17 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 
-const PlansPage = () => {
+const UserPlansPage = () => {
   const { loading, user } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (!loading && user) {
-      navigate("/usuario/planos", { replace: true });
+    if (!loading && !user) {
+      navigate("/login", { replace: true });
     }
   }, [loading, navigate, user]);
+
+  if (!loading && !user) return null;
 
   return (
     <div className="min-h-screen">
@@ -26,4 +28,4 @@ const PlansPage = () => {
   );
 };
 
-export default PlansPage;
+export default UserPlansPage;

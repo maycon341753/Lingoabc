@@ -29,7 +29,7 @@ const AdminLayout = () => {
       return;
     }
     if (!isAdmin) {
-      navigate("/dashboard");
+      navigate("/usuario/dashboard");
     }
   }, [isAdmin, loading, navigate, user]);
 

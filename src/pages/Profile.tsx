@@ -196,7 +196,7 @@ const ProfilePage = () => {
               </div>
 
               <div className="pt-4 flex gap-3">
-                <Button className="rounded-xl" onClick={() => navigate("/dashboard")}>
+                <Button className="rounded-xl" onClick={() => navigate("/usuario/dashboard")}>
                   Ir ao painel
                 </Button>
                 <Button
