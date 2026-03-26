@@ -112,11 +112,11 @@ const ModulesPage = () => {
         </div>
 
         {/* Subject tabs */}
-        <div className="flex gap-3 justify-center mb-8">
+        <div className="grid grid-cols-2 gap-3 mb-8 sm:flex sm:flex-wrap sm:justify-center">
           {subjects.map((s) => (
             <button
               key={s.id}
-              className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm transition-all ${
+              className={`w-full sm:w-auto flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm transition-all ${
                 selectedSubject === s.id
                   ? `${s.color} text-primary-foreground shadow-playful`
                   : "bg-muted text-muted-foreground hover:bg-muted/80"
@@ -128,7 +128,7 @@ const ModulesPage = () => {
             </button>
           ))}
           <button
-            className="flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm transition-all bg-secondary text-primary-foreground shadow-playful"
+            className="w-full sm:w-auto flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm transition-all bg-secondary text-primary-foreground shadow-playful"
             onClick={() => navigate("/videos")}
           >
             Vídeos e Músicas

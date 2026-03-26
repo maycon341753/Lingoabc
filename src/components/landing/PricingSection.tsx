@@ -6,7 +6,8 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { supabase } from "@/lib/supabase";
 
 const plans = [
   {
@@ -57,6 +58,88 @@ const PricingSection = () => {
   const [pixCode, setPixCode] = useState("");
   const [pixQrImage, setPixQrImage] = useState("");
   const [paymentError, setPaymentError] = useState<string | null>(null);
+  const autoPixRequestedRef = useRef(false);
+
+  const generatePayment = useCallback(async (targetMethod: "pix" | "card") => {
+    setPaymentError(null);
+    setProcessing(true);
+    const amount = Number(String(selectedPlan?.price ?? "0").replace(/[^\d,]/g, "").replace(",", "."));
+    const customerEmail = user?.email ?? undefined;
+    const customerName = userLabel ?? customerEmail ?? "Usuário";
+    let customerCpfCnpj: string | undefined = undefined;
+    if (user?.id) {
+      const { data } = await supabase.from("profiles").select("cpf").eq("id", user.id).maybeSingle();
+      const digits = String((data as { cpf: string | null } | null)?.cpf ?? "").replace(/\D/g, "");
+      if (digits.length === 11 || digits.length === 14) customerCpfCnpj = digits;
+    }
+
+    const body =
+      targetMethod === "pix"
+        ? {
+            method: "pix",
+            amount,
+            description: selectedPlan?.name ?? "Plano",
+            customerName,
+            customerEmail,
+            customerCpfCnpj,
+          }
+        : {
+            method: "card",
+            amount,
+            description: selectedPlan?.name ?? "Plano",
+            customerName,
+            customerEmail,
+            customerCpfCnpj,
+            installments,
+            card: {
+              holderName: cardName,
+              number: cardNumber.replace(/\s/g, ""),
+              expiryMonth: cardExpiry.slice(0, 2),
+              expiryYear: cardExpiry.slice(-2),
+              ccv: cardCvv,
+            },
+          };
+
+    try {
+      const r = await fetch("/api/asaas/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const data = await r.json().catch(() => null);
+      if (!r.ok) throw data;
+      if (targetMethod === "pix") {
+        const code = String(data?.qrCode?.payload ?? "");
+        const encodedImage = String(data?.qrCode?.encodedImage ?? "");
+        if (encodedImage) setPixQrImage(encodedImage);
+        if (code) setPixCode(code);
+        if (!code && !encodedImage) setPaymentError("Não foi possível gerar o PIX. Tente novamente.");
+      } else {
+        setPaymentOpen(false);
+        navigate("/dashboard");
+      }
+    } catch (e: unknown) {
+      const err = e as { errors?: Array<{ description?: unknown }> } | null;
+      const msg = typeof err?.errors?.[0]?.description === "string" ? String(err.errors[0].description) : null;
+      setPaymentError(msg || "Falha ao gerar pagamento. Verifique o deploy no Vercel e tente novamente.");
+    } finally {
+      setProcessing(false);
+    }
+  }, [cardCvv, cardExpiry, cardName, cardNumber, installments, navigate, selectedPlan?.name, selectedPlan?.price, user?.email, user?.id, userLabel]);
+
+  useEffect(() => {
+    if (!paymentOpen) {
+      autoPixRequestedRef.current = false;
+      return;
+    }
+    if (method !== "pix") return;
+    if (!selectedPlan) return;
+    if (pixCode || pixQrImage) return;
+    if (processing) return;
+    if (autoPixRequestedRef.current) return;
+    autoPixRequestedRef.current = true;
+    generatePayment("pix");
+  }, [generatePayment, method, paymentOpen, pixCode, pixQrImage, processing, selectedPlan]);
 
   return (
     <section className="py-20 px-4 bg-card">
@@ -73,7 +156,10 @@ const PricingSection = () => {
                 className={`flex items-center gap-2 rounded-xl border px-4 py-3 font-bold ${
                   method === "pix" ? "bg-muted" : "bg-background"
                 }`}
-                onClick={() => setMethod("pix")}
+                onClick={() => {
+                  setMethod("pix");
+                  setPaymentError(null);
+                }}
               >
                 <QrCode className="w-4 h-4" /> PIX
               </button>
@@ -81,7 +167,10 @@ const PricingSection = () => {
                 className={`flex items-center gap-2 rounded-xl border px-4 py-3 font-bold ${
                   method === "card" ? "bg-muted" : "bg-background"
                 }`}
-                onClick={() => setMethod("card")}
+                onClick={() => {
+                  setMethod("card");
+                  setPaymentError(null);
+                }}
               >
                 <CreditCard className="w-4 h-4" /> Cartão de crédito
               </button>
@@ -186,65 +275,10 @@ const PricingSection = () => {
               type="button"
               disabled={processing}
               onClick={() => {
-                setPaymentError(null);
-                setProcessing(true);
-                const amount = Number(String(selectedPlan?.price ?? "0").replace(/[^\d,]/g, "").replace(",", "."));
-                const customerEmail = user?.email ?? undefined;
-                const customerName = userLabel ?? customerEmail ?? "Usuário";
-                const body =
-                  method === "pix"
-                    ? {
-                        method: "pix",
-                        amount,
-                        description: selectedPlan?.name ?? "Plano",
-                        customerName,
-                        customerEmail,
-                      }
-                    : {
-                        method: "card",
-                        amount,
-                        description: selectedPlan?.name ?? "Plano",
-                        customerName,
-                        customerEmail,
-                        installments,
-                        card: {
-                          holderName: cardName,
-                          number: cardNumber.replace(/\s/g, ""),
-                          expiryMonth: cardExpiry.slice(0, 2),
-                          expiryYear: cardExpiry.slice(-2),
-                          ccv: cardCvv,
-                        },
-                      };
-                fetch("/api/asaas/checkout", {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify(body),
-                })
-                  .then(async (r) => {
-                    const data = await r.json().catch(() => null);
-                    if (!r.ok) throw data;
-                    return data;
-                  })
-                  .then((data) => {
-                    if (method === "pix") {
-                      const code = String(data?.qrCode?.payload ?? "");
-                      const encodedImage = String(data?.qrCode?.encodedImage ?? "");
-                      if (encodedImage) setPixQrImage(encodedImage);
-                      if (code) setPixCode(code);
-                      if (!code && !encodedImage) setPaymentError("Não foi possível gerar o PIX. Tente novamente.");
-                    } else {
-                      setPaymentOpen(false);
-                      navigate("/dashboard");
-                    }
-                  })
-                  .catch((e) => {
-                    const msg = typeof e?.errors?.[0]?.description === "string" ? e.errors[0].description : null;
-                    setPaymentError(msg || "Falha ao gerar pagamento. Verifique as variáveis no Vercel e tente novamente.");
-                  })
-                  .finally(() => setProcessing(false));
+                generatePayment(method);
               }}
             >
-              Pagar agora
+              {method === "pix" ? "Gerar PIX" : "Pagar agora"}
             </Button>
           </DialogFooter>
         </DialogContent>
