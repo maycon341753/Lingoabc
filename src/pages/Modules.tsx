@@ -36,6 +36,12 @@ const ModulesPage = () => {
   const isFreeUser = !loading && !!user && !hasSubscription;
 
   useEffect(() => {
+    if (!loading && !user) {
+      navigate("/login");
+    }
+  }, [loading, user, navigate]);
+
+  useEffect(() => {
     const moduleName = modules[selectedModule]?.name ?? "Descoberta";
     const key = `progressPerfect:${selectedSubject}:${moduleName}`;
     try {
