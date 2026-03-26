@@ -5,6 +5,8 @@ import heroKids from "@/assets/hero-kids.png";
 
 const HeroSection = () => {
   const navigate = useNavigate();
+  const autismRainbowClass =
+    "bg-[linear-gradient(90deg,#ff3b30,#ff9500,#ffcc00,#34c759,#00c7be,#007aff,#5856d6,#ff2d55)] text-transparent bg-clip-text font-extrabold";
 
   return (
     <section className="relative overflow-hidden py-16 md:py-24 px-4">
@@ -44,6 +46,7 @@ const HeroSection = () => {
             </motion.span>
 
             <h1 className="text-4xl md:text-5xl lg:text-6xl font-display font-extrabold leading-tight mb-6">
+              <span className={`${autismRainbowClass} mr-2`}>♾</span>
               Aprenda brincando com o{" "}
               <span className="text-gradient-hero">LingoABC</span>
               <motion.span
@@ -57,7 +60,8 @@ const HeroSection = () => {
 
             <p className="text-lg md:text-xl text-muted-foreground mb-8 max-w-lg mx-auto lg:mx-0">
               Matemática, Português e Inglês para crianças de 4 a 12 anos.
-              Lições gamificadas, conquistas e muita diversão!
+              Lições gamificadas, conquistas e muita diversão!{" "}
+              <span className={autismRainbowClass}>♾</span>
             </p>
 
             <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">

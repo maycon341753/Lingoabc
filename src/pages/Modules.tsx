@@ -49,7 +49,7 @@ const ModulesPage = () => {
   useEffect(() => {
     try {
       const arr = modules.map((m) => {
-        const key = `progressPerfect:${selectedSubject}:${m.name}`;
+        const key = `progressCompleted:${selectedSubject}:${m.name}`;
         const raw = window.localStorage.getItem(key);
         const ids = raw ? (JSON.parse(raw) as number[]) : [];
         return Array.isArray(ids) && ids.length >= 40;
@@ -92,10 +92,10 @@ const ModulesPage = () => {
             <motion.button
               key={m.name}
               className={`rounded-2xl p-5 text-center transition-all ${
-                selectedModule === i
+                completedModules[i]
+                  ? `bg-primary text-primary-foreground shadow-playful ${selectedModule === i ? "scale-105" : ""}`
+                  : selectedModule === i
                   ? `${m.gradient} text-primary-foreground shadow-playful scale-105`
-                  : completedModules[i]
-                  ? "bg-primary text-primary-foreground shadow-playful"
                   : "bg-card shadow-card hover:shadow-hover"
               }`}
               onClick={() => setSelectedModule(i)}
@@ -104,7 +104,7 @@ const ModulesPage = () => {
             >
               <span className="text-3xl block mb-1">{m.emoji}</span>
               <span className="font-display font-bold text-sm">{m.name}</span>
-              <span className={`block text-xs ${selectedModule === i ? "text-primary-foreground/80" : "text-muted-foreground"}`}>
+              <span className={`block text-xs ${selectedModule === i || completedModules[i] ? "text-primary-foreground/80" : "text-muted-foreground"}`}>
                 {m.age}
               </span>
             </motion.button>

@@ -75,12 +75,21 @@ const DashboardPage = () => {
       if (!mounted) return;
       setLessonsTotal((lessonsCount as { count: number | null }).count ?? 0);
 
-      const completed = (progressRows ?? []).filter((r: { status: string | null }) => (r.status ?? "").toLowerCase() === "completed");
+      const rows = Array.isArray(progressRows) ? progressRows : [];
+      const completed = rows.filter((r: { status: string | null }) => (r.status ?? "").toLowerCase() === "completed");
       setCompletedActivities(completed.length);
       let pts = completed.reduce((sum: number, r: { score: number | null }) => sum + Number(r.score ?? 0), 0);
-      if ((progressRows ?? []).length === 0) {
-        const raw = window.localStorage.getItem("pointsTotal");
-        pts = Number(raw || "0");
+      if (rows.length === 0) {
+        let localPts = 0;
+        let hasLessonKeys = false;
+        for (let i = 0; i < window.localStorage.length; i += 1) {
+          const k = window.localStorage.key(i);
+          if (!k || !k.startsWith("pointsLesson:")) continue;
+          hasLessonKeys = true;
+          localPts += Number(window.localStorage.getItem(k) || "0");
+        }
+        if (!hasLessonKeys) localPts = Number(window.localStorage.getItem("pointsTotal") || "0");
+        pts = localPts;
       }
       setPoints(pts);
       const days = Array.from(new Set(completed.map((r: { created_at: string }) => new Date(r.created_at).toDateString())))

@@ -500,9 +500,25 @@ const LessonPage = () => {
   useEffect(() => {
     if (!finished) return;
     const key = "pointsTotal";
-    const cur = Number(window.localStorage.getItem(key) || "0");
-    window.localStorage.setItem(key, String(cur + Number(score || 0)));
-  }, [finished, score]);
+    const lessonKey = `pointsLesson:${materia}:${modulo}:${lessonId}`;
+    const prevLesson = Number(window.localStorage.getItem(lessonKey) || "0");
+    const nextLesson = Math.max(prevLesson, Number(score || 0));
+    window.localStorage.setItem(lessonKey, String(nextLesson));
+    const curTotal = Number(window.localStorage.getItem(key) || "0");
+    const delta = nextLesson - prevLesson;
+    if (delta > 0) window.localStorage.setItem(key, String(curTotal + delta));
+  }, [finished, materia, modulo, lessonId, score]);
+
+  useEffect(() => {
+    if (!finished) return;
+    const completedKey = `progressCompleted:${materia}:${modulo}`;
+    const raw = window.localStorage.getItem(completedKey);
+    const arr = raw ? (JSON.parse(raw) as number[]) : [];
+    if (Array.isArray(arr) && !arr.includes(lessonId)) {
+      arr.push(lessonId);
+      window.localStorage.setItem(completedKey, JSON.stringify(arr));
+    }
+  }, [finished, materia, modulo, lessonId]);
 
   if (finished) {
     const modulesOrder = ["Descoberta", "Construção", "Desenvolvimento", "Domínio"];
