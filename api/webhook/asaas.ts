@@ -26,7 +26,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const supaUrl = process.env.SUPABASE_URL;
   const supaKey = process.env.SUPABASE_SERVICE_ROLE;
   if (!apiKeyRaw || !supaUrl || !supaKey) return res.status(500).send("Missing server environment variables");
-  const apiKey = String(apiKeyRaw).replace(/^\$/, "").trim();
+  const apiKey = String(apiKeyRaw).trim();
 
   const supabase = createClient(supaUrl, supaKey);
 
@@ -40,15 +40,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const paymentId = typeof paymentObj["id"] === "string" ? (paymentObj["id"] as string) : null;
   const customerId = typeof paymentObj["customer"] === "string" ? (paymentObj["customer"] as string) : null;
-  const statusRaw = String(paymentObj["status"] ?? payloadObj["event"] ?? "").toLowerCase();
+  const eventRaw = String(payloadObj["event"] ?? "").toLowerCase();
+  const paymentStatusRaw = String(paymentObj["status"] ?? "").toLowerCase();
   const value = Number(paymentObj["value"] ?? paymentObj["amount"] ?? 0);
   const description = String(paymentObj["description"] ?? paymentObj["externalReference"] ?? "Assinatura");
   const receivedDate = String(
     paymentObj["confirmedDate"] ?? paymentObj["paymentDate"] ?? paymentObj["effectiveDate"] ?? new Date().toISOString(),
   );
 
-  let confirmed = false;
-  if (["confirmed", "received", "received_in_cash"].includes(statusRaw)) confirmed = true;
+  const confirmed =
+    ["payment_confirmed", "payment_received", "payment_received_in_cash"].includes(eventRaw) ||
+    ["confirmed", "received", "received_in_cash"].includes(paymentStatusRaw);
+
+  const canceled =
+    ["payment_canceled", "payment_refunded", "payment_deleted"].includes(eventRaw) ||
+    ["canceled", "refunded", "deleted"].includes(paymentStatusRaw);
 
   let customerEmail: string | null = null;
   try {
@@ -72,7 +78,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (!userId) return res.status(200).json({ ok: true, info: "no_user", email: customerEmail });
 
   const planName = description;
-  const { data: plan } = await supabase.from("plans").select("id,period_months,price").eq("name", planName).maybeSingle();
+  const { data: planExact } = await supabase.from("plans").select("id,period_months,price").eq("name", planName).maybeSingle();
+  let plan = planExact;
+  if (!plan) {
+    const { data: planFallback } = await supabase
+      .from("plans")
+      .select("id,period_months,price")
+      .ilike("name", `%${planName}%`)
+      .order("period_months", { ascending: true })
+      .limit(1)
+      .maybeSingle();
+    plan = planFallback;
+  }
   const periodMonths = Number(plan?.period_months ?? 1);
   const planId = plan?.id ?? null;
 
@@ -80,7 +97,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const expires = new Date(start);
   expires.setMonth(expires.getMonth() + (periodMonths > 0 ? periodMonths : 1));
 
-  const status = confirmed ? "active" : "pending";
+  const status = confirmed ? "active" : canceled ? "inactive" : "pending";
   const amount = value || Number(plan?.price ?? 0);
 
   await supabase

@@ -9,7 +9,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 
-const plans = [
+const fallbackPlans = [
   {
     name: "Mensal",
     price: "74,90",
@@ -43,9 +43,29 @@ const benefits = [
   "Relatório de progresso",
 ];
 
+type DbPlanRow = {
+  name: string;
+  price: number | null;
+  period_months: number | null;
+  billing_cycle: string | null;
+};
+
+type UiPlan = {
+  name: string;
+  price: string;
+  period: string;
+  highlight: boolean;
+  savings: string | null;
+};
+
+const formatBrl = (value: number) =>
+  new Intl.NumberFormat("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value);
+
 const PricingSection = () => {
   const navigate = useNavigate();
   const { user, userLabel } = useAuth();
+  const [plans, setPlans] = useState<UiPlan[]>(fallbackPlans);
+  const [plansError, setPlansError] = useState<string | null>(null);
   const [paymentOpen, setPaymentOpen] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState<{ name: string; price: string } | null>(null);
   const [method, setMethod] = useState<"pix" | "card">("pix");
@@ -58,7 +78,71 @@ const PricingSection = () => {
   const [pixCode, setPixCode] = useState("");
   const [pixQrImage, setPixQrImage] = useState("");
   const [paymentError, setPaymentError] = useState<string | null>(null);
+  const [waitingConfirmation, setWaitingConfirmation] = useState(false);
   const autoPixRequestedRef = useRef(false);
+
+  const loadPlans = useCallback(async () => {
+    const { data, error } = await supabase
+      .from("plans")
+      .select("name,price,period_months,billing_cycle")
+      .order("period_months", { ascending: true });
+    if (error) {
+      setPlansError(error.message);
+      setPlans(fallbackPlans);
+      return;
+    }
+
+    const rows = (data ?? []) as DbPlanRow[];
+    if (!rows.length) {
+      setPlansError("Nenhum plano encontrado.");
+      setPlans(fallbackPlans);
+      return;
+    }
+
+    const monthly = rows.find((p) => Number(p.period_months ?? 0) === 1);
+    const monthlyPrice = Number(monthly?.price ?? 0);
+
+    const mapped: UiPlan[] = rows.map((p) => {
+      const months = Math.max(1, Number(p.period_months ?? 1));
+      const priceNumber = Number(p.price ?? 0);
+      const price = formatBrl(priceNumber);
+      const period = months === 1 ? "/mês" : `/${months} meses`;
+      const cycle = String(p.billing_cycle ?? "").toLowerCase();
+      const nameNorm = String(p.name ?? "").toLowerCase();
+      const highlight = months === 3 || cycle.includes("trimes") || nameNorm.includes("trimes");
+
+      let savings: string | null = null;
+      if (monthlyPrice > 0 && months > 1) {
+        const s = monthlyPrice * months - priceNumber;
+        if (s >= 0.01) savings = `Economize R$ ${formatBrl(s)}`;
+      }
+
+      return {
+        name: p.name,
+        price,
+        period,
+        highlight,
+        savings,
+      };
+    });
+
+    setPlansError(null);
+    setPlans(mapped);
+  }, []);
+
+  useEffect(() => {
+    loadPlans().then(() => {});
+  }, [loadPlans]);
+
+  useEffect(() => {
+    const onFocus = () => {
+      loadPlans().then(() => {});
+    };
+    window.addEventListener("focus", onFocus);
+    return () => {
+      window.removeEventListener("focus", onFocus);
+    };
+  }, [loadPlans]);
 
   const generatePayment = useCallback(async (targetMethod: "pix" | "card") => {
     setPaymentError(null);
@@ -114,6 +198,7 @@ const PricingSection = () => {
         if (encodedImage) setPixQrImage(encodedImage);
         if (code) setPixCode(code);
         if (!code && !encodedImage) setPaymentError("Não foi possível gerar o PIX. Tente novamente.");
+        setWaitingConfirmation(Boolean(code || encodedImage));
       } else {
         setPaymentOpen(false);
         navigate("/dashboard");
@@ -141,6 +226,7 @@ const PricingSection = () => {
   useEffect(() => {
     if (!paymentOpen) {
       autoPixRequestedRef.current = false;
+      setWaitingConfirmation(false);
       return;
     }
     if (method !== "pix") return;
@@ -151,6 +237,52 @@ const PricingSection = () => {
     autoPixRequestedRef.current = true;
     generatePayment("pix");
   }, [generatePayment, method, paymentOpen, pixCode, pixQrImage, processing, selectedPlan]);
+
+  useEffect(() => {
+    if (!paymentOpen) return;
+    if (method !== "pix") return;
+    if (!user?.id) return;
+    if (!pixCode && !pixQrImage) return;
+    if (!waitingConfirmation) return;
+
+    let mounted = true;
+    const startedAt = Date.now();
+
+    const check = async () => {
+      const { data } = await supabase
+        .from("subscriptions")
+        .select("status,expires_at")
+        .eq("user_id", user.id)
+        .order("expires_at", { ascending: false, nullsFirst: false })
+        .limit(1)
+        .maybeSingle();
+      if (!mounted) return;
+      const row = data as { status?: string | null; expires_at?: string | null } | null;
+      const status = String(row?.status ?? "").toLowerCase();
+      const t = row?.expires_at ? new Date(row.expires_at).getTime() : NaN;
+      const active = (status === "active" || status === "ativa") && Number.isFinite(t) && t > Date.now();
+      if (active) {
+        setWaitingConfirmation(false);
+        setPaymentOpen(false);
+        navigate("/dashboard");
+      }
+    };
+
+    check().then(() => {});
+    const interval = window.setInterval(() => {
+      if (Date.now() - startedAt > 10 * 60 * 1000) {
+        window.clearInterval(interval);
+        if (mounted) setWaitingConfirmation(false);
+        return;
+      }
+      check().then(() => {});
+    }, 5000);
+
+    return () => {
+      mounted = false;
+      window.clearInterval(interval);
+    };
+  }, [method, navigate, paymentOpen, pixCode, pixQrImage, user?.id, waitingConfirmation]);
 
   return (
     <section className="py-20 px-4 bg-card">
@@ -214,6 +346,9 @@ const PricingSection = () => {
                   />
                 </div>
                 {paymentError && <p className="text-sm font-bold text-destructive">{paymentError}</p>}
+                {waitingConfirmation && !paymentError && (
+                  <p className="text-sm font-bold text-muted-foreground">Aguardando confirmação do pagamento…</p>
+                )}
               </div>
             ) : (
               <div className="grid gap-3">
@@ -309,6 +444,8 @@ const PricingSection = () => {
             Escolha o melhor plano para seu filho
           </p>
         </motion.div>
+
+        {plansError && <p className="text-center mb-6 text-sm font-bold text-muted-foreground">Aviso: {plansError}</p>}
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {plans.map((plan, i) => (

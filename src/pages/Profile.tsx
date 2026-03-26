@@ -45,6 +45,11 @@ const ProfilePage = () => {
   const navigate = useNavigate();
   const { signOut } = useAuth();
 
+  const statusNorm = String(plan?.subscription_status ?? "").toLowerCase();
+  const expiresAtMs = plan?.expires_at ? new Date(plan.expires_at).getTime() : null;
+  const hasActiveSubscription =
+    (statusNorm === "active" || statusNorm === "ativa") && expiresAtMs != null && Number.isFinite(expiresAtMs) && expiresAtMs > Date.now();
+
   useEffect(() => {
     let mounted = true;
 
@@ -175,6 +180,13 @@ const ProfilePage = () => {
                     </span>
                   </div>
                 </div>
+                {!hasActiveSubscription && (
+                  <div className="mt-4">
+                    <Button className="rounded-xl bg-gradient-hero font-bold" onClick={() => navigate("/planos")}>
+                      Assinar / Renovar
+                    </Button>
+                  </div>
+                )}
               </div>
 
               <div className="pt-4 flex gap-3">

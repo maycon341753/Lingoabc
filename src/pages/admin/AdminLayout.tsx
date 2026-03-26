@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import Navbar from "@/components/landing/Navbar";
-import { Settings, LayoutDashboard, GraduationCap, BookOpen, Users, CreditCard, Film, BarChart3 } from "lucide-react";
+import { Settings, LayoutDashboard, GraduationCap, BookOpen, Users, CreditCard, Film, BarChart3, BadgePercent, NotebookPen } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 
 const items = [
@@ -11,6 +11,8 @@ const items = [
   { to: "/admin/licoes", label: "Lições", icon: BookOpen },
   { to: "/admin/usuarios", label: "Usuários", icon: Users },
   { to: "/admin/assinaturas", label: "Assinaturas", icon: CreditCard },
+  { to: "/admin/planos", label: "Planos", icon: NotebookPen },
+  { to: "/admin/indicacoes", label: "Indicações", icon: BadgePercent },
   { to: "/admin/videos", label: "Vídeos", icon: Film },
   { to: "/admin/relatorios", label: "Relatórios", icon: BarChart3 },
 ];
@@ -88,4 +90,3 @@ const AdminLayout = () => {
 };
 
 export default AdminLayout;
-
