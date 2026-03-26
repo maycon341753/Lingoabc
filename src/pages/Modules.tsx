@@ -29,6 +29,7 @@ const ModulesPage = () => {
   const [selectedModule, setSelectedModule] = useState(0);
   const [selectedSubject, setSelectedSubject] = useState("math");
   const [perfectIds, setPerfectIds] = useState<number[]>([]);
+  const [completedIds, setCompletedIds] = useState<number[]>([]);
   const [completedModules, setCompletedModules] = useState<boolean[]>([]);
   const navigate = useNavigate();
   const { loading, user, hasSubscription } = useAuth();
@@ -43,6 +44,18 @@ const ModulesPage = () => {
       setPerfectIds(Array.isArray(arr) ? arr : []);
     } catch {
       setPerfectIds([]);
+    }
+  }, [selectedModule, selectedSubject]);
+
+  useEffect(() => {
+    const moduleName = modules[selectedModule]?.name ?? "Descoberta";
+    const key = `progressCompleted:${selectedSubject}:${moduleName}`;
+    try {
+      const raw = window.localStorage.getItem(key);
+      const arr = raw ? (JSON.parse(raw) as number[]) : [];
+      setCompletedIds(Array.isArray(arr) ? arr : []);
+    } catch {
+      setCompletedIds([]);
     }
   }, [selectedModule, selectedSubject]);
 
@@ -64,15 +77,15 @@ const ModulesPage = () => {
     const base = generateLessons(40);
     return base.map((l) => {
       if (isFreeUser) {
-        const completed = l.id === 1 && perfectIds.includes(1);
+        const completed = l.id === 1 && completedIds.includes(1);
         const locked = l.id !== 1;
         return { ...l, completed, locked };
       }
-      const completed = perfectIds.includes(l.id);
+      const completed = completedIds.includes(l.id);
       const locked = l.id > 1 && !perfectIds.includes(l.id - 1);
       return { ...l, completed, locked };
     });
-  }, [isFreeUser, perfectIds]);
+  }, [completedIds, isFreeUser, perfectIds]);
 
   return (
     <div className="min-h-screen">

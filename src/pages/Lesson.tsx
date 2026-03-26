@@ -452,6 +452,23 @@ const LessonPage = () => {
   }, [initQuestion]);
 
   useEffect(() => {
+    try {
+      const completedKey = `progressCompleted:${materia}:${modulo}`;
+      const raw = window.localStorage.getItem(completedKey);
+      const arr = raw ? (JSON.parse(raw) as number[]) : [];
+      if (!Array.isArray(arr) || !arr.includes(lessonId)) return;
+      const lessonKey = `pointsLesson:${materia}:${modulo}:${lessonId}`;
+      const savedScore = Number(window.localStorage.getItem(lessonKey) || "0");
+      setScore(savedScore);
+      setCurrent(Math.max(0, questions.length - 1));
+      setAnswered(true);
+      setFinished(true);
+    } catch {
+      return;
+    }
+  }, [lessonId, materia, modulo, questions.length]);
+
+  useEffect(() => {
     if (!finished) return;
     try {
       const perfectKey = `progressPerfect:${materia}:${modulo}`;
@@ -513,11 +530,12 @@ const LessonPage = () => {
     if (!finished) return;
     const completedKey = `progressCompleted:${materia}:${modulo}`;
     const raw = window.localStorage.getItem(completedKey);
-    const arr = raw ? (JSON.parse(raw) as number[]) : [];
-    if (Array.isArray(arr) && !arr.includes(lessonId)) {
+    let arr = raw ? (JSON.parse(raw) as number[]) : [];
+    if (!Array.isArray(arr)) arr = [];
+    if (!arr.includes(lessonId)) {
       arr.push(lessonId);
-      window.localStorage.setItem(completedKey, JSON.stringify(arr));
     }
+    window.localStorage.setItem(completedKey, JSON.stringify(arr));
   }, [finished, materia, modulo, lessonId]);
 
   if (finished) {
@@ -539,7 +557,20 @@ const LessonPage = () => {
       <div className="min-h-screen">
         <Navbar />
         <div className="flex items-center justify-center min-h-[70vh] px-4">
-          <motion.div className="text-center" initial={{ scale: 0.5, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ type: "spring" }}>
+          <motion.div className="w-full max-w-2xl" initial={{ scale: 0.5, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ type: "spring" }}>
+            <div className="mb-8">
+              <div className="flex justify-between items-center mb-2">
+                <span className="text-sm font-bold text-muted-foreground">Pergunta {questions.length}/{questions.length}</span>
+                <span className="text-sm font-bold text-sun flex items-center gap-1">
+                  <Star className="w-4 h-4 fill-sun" /> {score} pts
+                </span>
+              </div>
+              <div className="h-3 bg-muted rounded-full overflow-hidden">
+                <div className="h-full bg-gradient-hero rounded-full" style={{ width: "100%" }} />
+              </div>
+            </div>
+
+            <div className="text-center">
             <motion.div className="text-7xl mb-6" animate={{ rotate: [0, 10, -10, 0] }} transition={{ duration: 1, repeat: Infinity }}>🎉</motion.div>
             <h1 className="text-4xl font-display font-extrabold mb-4">Parabéns!</h1>
             <p className="text-xl text-muted-foreground mb-2">Você completou a lição!</p>
@@ -555,6 +586,7 @@ const LessonPage = () => {
               <Button size="lg" className="bg-gradient-hero font-bold rounded-2xl px-8 py-6 text-lg" onClick={handleGoNextModule}>
                 Próximo módulo ▶️
               </Button>
+            </div>
             </div>
           </motion.div>
         </div>
