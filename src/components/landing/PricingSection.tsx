@@ -296,64 +296,75 @@ const PricingSection = () => {
         token = (await supabase.auth.refreshSession()).data.session?.access_token;
       }
       if (token) {
-        const syncResp = await fetch(buildApiUrl("/api/asaas/sync"), {
-          method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-          body: JSON.stringify({ paymentId: pixPaymentId }),
-        });
-        if (!syncResp.ok) {
-          const errJson = await syncResp.json().catch(() => null);
-          const errMsg =
-            typeof errJson?.error === "string"
-              ? String(errJson.error)
-              : typeof errJson?.message === "string"
-              ? String(errJson.message)
-              : `http_${syncResp.status}`;
-          setPaymentError(errMsg);
-          return;
-        }
-        const syncJson = await syncResp.json().catch(() => null);
-        if (!mounted) return;
-        const syncedStatus = String(syncJson?.status ?? "").toLowerCase();
-        if (syncedStatus === "active" || syncedStatus === "ativa") {
-          setWaitingConfirmation(false);
-          setPaymentOpen(false);
-          setSuccessOpen(true);
-          window.setTimeout(() => {
-            navigate("/usuario/dashboard");
-          }, 1200);
-          return;
-        }
-        const elapsedMs = Date.now() - startedAt;
-        if ((syncedStatus !== "active" && syncedStatus !== "ativa") && elapsedMs >= 30 * 1000) {
-          const latestResp = await fetch(buildApiUrl("/api/asaas/sync-latest"), {
+        try {
+          const syncResp = await fetch(buildApiUrl("/api/asaas/sync"), {
             method: "POST",
             headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-            body: JSON.stringify({}),
+            body: JSON.stringify({ paymentId: pixPaymentId }),
           });
-          if (!latestResp.ok) {
-            const errJson = await latestResp.json().catch(() => null);
-            const errMsg =
-              typeof errJson?.error === "string"
-                ? String(errJson.error)
-                : typeof errJson?.message === "string"
-                ? String(errJson.message)
-                : `http_${latestResp.status}`;
-            setPaymentError(errMsg);
-            return;
-          }
-          const latestJson = await latestResp.json().catch(() => null);
+          const syncJson = await syncResp.json().catch(() => null);
           if (!mounted) return;
-          const latestStatus = String(latestJson?.status ?? "").toLowerCase();
-          if (latestStatus === "active" || latestStatus === "ativa") {
-            setWaitingConfirmation(false);
-            setPaymentOpen(false);
-            setSuccessOpen(true);
-            window.setTimeout(() => {
-              navigate("/usuario/dashboard");
-            }, 1200);
-            return;
+
+          if (!syncResp.ok) {
+            const errMsg =
+              typeof syncJson?.error === "string"
+                ? String(syncJson.error)
+                : typeof syncJson?.message === "string"
+                ? String(syncJson.message)
+                : `http_${syncResp.status}`;
+            if (errMsg === "forbidden_payment_owner") {
+              setPaymentError("Este pagamento não pertence a este usuário.");
+              return;
+            }
+          } else {
+            const syncedStatus = String(syncJson?.status ?? "").toLowerCase();
+            if (syncedStatus === "active" || syncedStatus === "ativa") {
+              setWaitingConfirmation(false);
+              setPaymentOpen(false);
+              setSuccessOpen(true);
+              window.setTimeout(() => {
+                navigate("/usuario/dashboard");
+              }, 1200);
+              return;
+            }
+
+            const elapsedMs = Date.now() - startedAt;
+            if (elapsedMs >= 30 * 1000) {
+              const latestResp = await fetch(buildApiUrl("/api/asaas/sync-latest"), {
+                method: "POST",
+                headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+                body: JSON.stringify({}),
+              });
+              const latestJson = await latestResp.json().catch(() => null);
+              if (!mounted) return;
+
+              if (!latestResp.ok) {
+                const errMsg =
+                  typeof latestJson?.error === "string"
+                    ? String(latestJson.error)
+                    : typeof latestJson?.message === "string"
+                    ? String(latestJson.message)
+                    : `http_${latestResp.status}`;
+                if (errMsg === "forbidden_payment_owner") {
+                  setPaymentError("Este pagamento não pertence a este usuário.");
+                  return;
+                }
+              } else {
+                const latestStatus = String(latestJson?.status ?? "").toLowerCase();
+                if (latestStatus === "active" || latestStatus === "ativa") {
+                  setWaitingConfirmation(false);
+                  setPaymentOpen(false);
+                  setSuccessOpen(true);
+                  window.setTimeout(() => {
+                    navigate("/usuario/dashboard");
+                  }, 1200);
+                  return;
+                }
+              }
+            }
           }
+        } catch {
+          void 0;
         }
       }
 
