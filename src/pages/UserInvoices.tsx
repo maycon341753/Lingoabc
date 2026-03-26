@@ -19,6 +19,10 @@ type InvoiceItem = {
 };
 
 const buildApiUrl = (path: string) => {
+  if (typeof window !== "undefined") {
+    const host = window.location.hostname;
+    if (host === "localhost" || host === "127.0.0.1") return path;
+  }
   const base = String(import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/+$/, "");
   if (!base) return path;
   return `${base}${path.startsWith("/") ? "" : "/"}${path}`;
@@ -27,16 +31,16 @@ const buildApiUrl = (path: string) => {
 const formatBrl = (value: number) =>
   new Intl.NumberFormat("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value);
 
-const parseDate = (iso: string | null) => {
-  if (!iso) return null;
-  const d = new Date(iso);
-  return Number.isFinite(d.getTime()) ? d : null;
-};
-
 const fmtDate = (iso: string | null) => {
-  const d = parseDate(iso);
-  if (!d) return "—";
-  return d.toLocaleString("pt-BR");
+  if (!iso) return "—";
+  if (/^\d{4}-\d{2}-\d{2}$/.test(iso)) {
+    const [y, m, d] = iso.split("-").map((x) => Number(x));
+    const dt = new Date(y, m - 1, d);
+    return Number.isFinite(dt.getTime()) ? dt.toLocaleDateString("pt-BR") : "—";
+  }
+  const dt = new Date(iso);
+  if (!Number.isFinite(dt.getTime())) return "—";
+  return dt.toLocaleString("pt-BR");
 };
 
 const UserInvoicesPage = () => {
@@ -60,6 +64,35 @@ const UserInvoicesPage = () => {
     const load = async () => {
       setFetching(true);
       setError(null);
+
+      try {
+        const { data, error: dbError } = await supabase
+          .from("asaas_payments")
+          .select("payment_id,invoice_url,description,billing_type,value,status,date_created,payment_date,confirmed_date,due_date")
+          .order("confirmed_date", { ascending: false, nullsFirst: false })
+          .order("date_created", { ascending: false, nullsFirst: false })
+          .limit(50);
+        if (!mounted) return;
+        if (!dbError && Array.isArray(data) && data.length > 0) {
+          const list = data.map((r) => ({
+            id: typeof r.payment_id === "string" ? r.payment_id : null,
+            invoiceUrl: typeof r.invoice_url === "string" ? r.invoice_url : null,
+            description: typeof r.description === "string" ? r.description : "Assinatura",
+            billingType: typeof r.billing_type === "string" ? r.billing_type : null,
+            value: Number(r.value ?? 0),
+            status: typeof r.status === "string" ? r.status : null,
+            dateCreated: typeof r.date_created === "string" ? r.date_created : null,
+            paymentDate: typeof r.payment_date === "string" ? r.payment_date : null,
+            confirmedDate: typeof r.confirmed_date === "string" ? r.confirmed_date : null,
+            dueDate: typeof r.due_date === "string" ? r.due_date : null,
+          }));
+          setItems(list);
+          setFetching(false);
+          return;
+        }
+      } catch {
+        void 0;
+      }
 
       let token = (await supabase.auth.getSession()).data.session?.access_token;
       if (!token) token = (await supabase.auth.refreshSession()).data.session?.access_token;
@@ -174,4 +207,3 @@ const UserInvoicesPage = () => {
 };
 
 export default UserInvoicesPage;
-

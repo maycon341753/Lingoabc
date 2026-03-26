@@ -45,6 +45,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const value = Number(paymentObj["value"] ?? paymentObj["amount"] ?? 0);
   const description = String(paymentObj["description"] ?? "Assinatura");
   const externalReference = typeof paymentObj["externalReference"] === "string" ? String(paymentObj["externalReference"]) : "";
+  const dueDate = typeof paymentObj["dueDate"] === "string" ? String(paymentObj["dueDate"]) : null;
+  const invoiceUrl = typeof paymentObj["invoiceUrl"] === "string" ? String(paymentObj["invoiceUrl"]) : null;
+  const billingType = typeof paymentObj["billingType"] === "string" ? String(paymentObj["billingType"]) : null;
+  const webhookDateCreated = typeof payloadObj["dateCreated"] === "string" ? String(payloadObj["dateCreated"]) : null;
+  const eventAt = webhookDateCreated ? new Date(webhookDateCreated).toISOString() : new Date().toISOString();
   const receivedDate = String(
     paymentObj["confirmedDate"] ?? paymentObj["paymentDate"] ?? paymentObj["effectiveDate"] ?? new Date().toISOString(),
   );
@@ -95,6 +100,32 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         expires_at: expires.toISOString(),
       })
       .select();
+
+    try {
+      if (paymentId) {
+        await supabase
+          .from("asaas_payments")
+          .upsert(
+            {
+              user_id: userId,
+              payment_id: paymentId,
+              customer_id: customerId,
+              invoice_url: invoiceUrl,
+              description,
+              billing_type: billingType,
+              status: paymentStatusRaw,
+              value: amount,
+              date_created: eventAt,
+              confirmed_date: confirmed ? eventAt : null,
+              due_date: dueDate,
+            },
+            { onConflict: "payment_id" },
+          )
+          .select("payment_id");
+      }
+    } catch {
+      void 0;
+    }
 
     return res.status(200).json({ ok: true, userId, planId, status });
   }
@@ -154,6 +185,32 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       expires_at: expires.toISOString(),
     })
     .select();
+
+  try {
+    if (paymentId) {
+      await supabase
+        .from("asaas_payments")
+        .upsert(
+          {
+            user_id: userId,
+            payment_id: paymentId,
+            customer_id: customerId,
+            invoice_url: invoiceUrl,
+            description,
+            billing_type: billingType,
+            status: paymentStatusRaw,
+            value: amount,
+            date_created: eventAt,
+            confirmed_date: confirmed ? eventAt : null,
+            due_date: dueDate,
+          },
+          { onConflict: "payment_id" },
+        )
+        .select("payment_id");
+    }
+  } catch {
+    void 0;
+  }
 
   return res.status(200).json({ ok: true, userId, planId, status });
 }

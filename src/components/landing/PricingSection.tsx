@@ -62,6 +62,10 @@ const formatBrl = (value: number) =>
   new Intl.NumberFormat("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value);
 
 const buildApiUrl = (path: string) => {
+  if (typeof window !== "undefined") {
+    const host = window.location.hostname;
+    if (host === "localhost" || host === "127.0.0.1") return path;
+  }
   const base = String(import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/+$/, "");
   if (!base) return path;
   return `${base}${path.startsWith("/") ? "" : "/"}${path}`;
@@ -220,6 +224,24 @@ const PricingSection = () => {
         if (paymentId) setPixPaymentId(paymentId);
         if (encodedImage) setPixQrImage(encodedImage);
         if (code) setPixCode(code);
+        if (paymentId) {
+          try {
+            await fetch(buildApiUrl("/api/asaas/link"), {
+              method: "POST",
+              headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+              body: JSON.stringify({
+                paymentId,
+                description: selectedPlan?.name ?? "Assinatura",
+                value: amount,
+                dueDate: undefined,
+                invoiceUrl: data?.qrCode?.success ? String(data?.qrCode?.success) : undefined,
+                billingType: "PIX",
+              }),
+            });
+          } catch {
+            void 0;
+          }
+        }
         if (!code && !encodedImage) setPaymentError("Não foi possível gerar o PIX. Tente novamente.");
         setWaitingConfirmation(Boolean(code || encodedImage));
       } else {
