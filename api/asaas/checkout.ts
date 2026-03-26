@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 
-const baseUrl = "https://api.asaas.com/v3";
+const baseUrl = (process.env.ASAAS_API_URL || "https://api.asaas.com/v3").replace(/\/+$/, "");
 
 async function fetchAsaas(path: string, method: string, apiKey: string, body?: unknown) {
   const res = await fetch(`${baseUrl}${path}`, {
