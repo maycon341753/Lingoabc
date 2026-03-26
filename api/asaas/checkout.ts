@@ -1,12 +1,13 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 
-const baseUrl = "https://api.asaas.com/api/v3";
+const baseUrl = "https://api.asaas.com/v3";
 
 async function fetchAsaas(path: string, method: string, apiKey: string, body?: unknown) {
   const res = await fetch(`${baseUrl}${path}`, {
     method,
     headers: {
-      Authorization: `Bearer ${apiKey}`,
+      "User-Agent": "lingoabc",
+      access_token: apiKey,
       "Content-Type": "application/json",
     },
     body: body ? JSON.stringify(body) : undefined,

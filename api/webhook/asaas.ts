@@ -1,6 +1,8 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { createClient } from "@supabase/supabase-js";
 
+const asaasBaseUrl = "https://api.asaas.com/v3";
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "POST") return res.status(405).send("Method Not Allowed");
   const secret = process.env.ASSAS_WEBHOOK_SECRET;
@@ -20,21 +22,30 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   if (!token || token !== expected) return res.status(401).send("Invalid token");
 
-  const apiKey = process.env.ASSAS_API_KEY;
+  const apiKeyRaw = process.env.ASSAS_API_KEY;
   const supaUrl = process.env.SUPABASE_URL;
   const supaKey = process.env.SUPABASE_SERVICE_ROLE;
-  if (!apiKey || !supaUrl || !supaKey) return res.status(500).send("Missing server environment variables");
+  if (!apiKeyRaw || !supaUrl || !supaKey) return res.status(500).send("Missing server environment variables");
+  const apiKey = String(apiKeyRaw).replace(/^\$/, "").trim();
 
   const supabase = createClient(supaUrl, supaKey);
 
-  const payload: any = req.body;
-  const payment = payload?.payment ?? payload;
-  const paymentId = payment?.id ?? null;
-  const customerId = payment?.customer ?? null;
-  const statusRaw = String(payment?.status ?? payload?.event ?? "").toLowerCase();
-  const value = Number(payment?.value ?? payment?.amount ?? 0);
-  const description = String(payment?.description ?? payment?.externalReference ?? "Assinatura");
-  const receivedDate = payment?.confirmedDate ?? payment?.paymentDate ?? payment?.effectiveDate ?? new Date().toISOString();
+  const payloadObj =
+    typeof req.body === "object" && req.body !== null ? (req.body as Record<string, unknown>) : {};
+  const embeddedPayment = payloadObj["payment"];
+  const paymentObj =
+    typeof embeddedPayment === "object" && embeddedPayment !== null
+      ? (embeddedPayment as Record<string, unknown>)
+      : payloadObj;
+
+  const paymentId = typeof paymentObj["id"] === "string" ? (paymentObj["id"] as string) : null;
+  const customerId = typeof paymentObj["customer"] === "string" ? (paymentObj["customer"] as string) : null;
+  const statusRaw = String(paymentObj["status"] ?? payloadObj["event"] ?? "").toLowerCase();
+  const value = Number(paymentObj["value"] ?? paymentObj["amount"] ?? 0);
+  const description = String(paymentObj["description"] ?? paymentObj["externalReference"] ?? "Assinatura");
+  const receivedDate = String(
+    paymentObj["confirmedDate"] ?? paymentObj["paymentDate"] ?? paymentObj["effectiveDate"] ?? new Date().toISOString(),
+  );
 
   let confirmed = false;
   if (["confirmed", "received", "received_in_cash"].includes(statusRaw)) confirmed = true;
@@ -42,13 +53,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   let customerEmail: string | null = null;
   try {
     if (customerId) {
-      const resp = await fetch(`https://api.asaas.com/api/v3/customers/${customerId}`, {
-        headers: { Authorization: `Bearer ${apiKey}` },
+      const resp = await fetch(`${asaasBaseUrl}/customers/${customerId}`, {
+        headers: { "User-Agent": "lingoabc", access_token: apiKey },
       });
       const j = await resp.json();
-      customerEmail = j?.email ?? null;
+      customerEmail = typeof j?.email === "string" ? j.email : null;
     }
-  } catch {}
+  } catch {
+    customerEmail = null;
+  }
 
   if (!customerEmail) {
     return res.status(200).json({ ok: true, info: "no_email", paymentId });
