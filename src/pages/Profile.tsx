@@ -38,6 +38,10 @@ type SubscriptionWithPlanRow = {
 };
 
 const buildApiUrl = (path: string) => {
+  if (typeof window !== "undefined") {
+    const host = window.location.hostname;
+    if (host === "localhost" || host === "127.0.0.1") return path;
+  }
   const base = String(import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/+$/, "");
   if (!base) return path;
   return `${base}${path.startsWith("/") ? "" : "/"}${path}`;
@@ -157,7 +161,9 @@ const ProfilePage = () => {
                 <div className="space-y-2">
                   <div className="flex items-center justify-between gap-4">
                     <span className="text-sm text-muted-foreground">Plano</span>
-                    <span className="font-bold text-right">{plan?.plan_name ?? "Sem assinatura"}</span>
+                    <span className="font-bold text-right">
+                      {plan?.plan_name ?? (plan?.subscription_status ? "Assinatura" : "Sem assinatura")}
+                    </span>
                   </div>
                   <div className="flex items-center justify-between gap-4">
                     <span className="text-sm text-muted-foreground">Ciclo</span>
