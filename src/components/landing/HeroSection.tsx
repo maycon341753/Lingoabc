@@ -110,6 +110,9 @@ const HeroSection = () => {
               src={heroKids}
               alt="Crianças aprendendo com LingoABC"
               className="w-full max-w-md lg:max-w-lg"
+              loading="eager"
+              decoding="async"
+              fetchPriority="high"
               animate={{ y: [0, -8, 0] }}
               transition={{ duration: 4, repeat: Infinity }}
             />

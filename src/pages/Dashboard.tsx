@@ -5,6 +5,8 @@ import { useNavigate } from "react-router-dom";
 import Navbar from "@/components/landing/Navbar";
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import mascot from "@/assets/mascot-owl.png";
+import { useSeo } from "@/lib/useSeo";
 
 type UserPlanRow = {
   user_id: string;
@@ -31,6 +33,15 @@ const buildApiUrl = (path: string) => {
 
 const DashboardPage = () => {
   const navigate = useNavigate();
+  const origin = typeof window !== "undefined" ? window.location.origin : "";
+  const canonical = origin ? `${origin}/usuario/dashboard` : "/usuario/dashboard";
+  useSeo({
+    title: "Dashboard | LingoABC",
+    description: "Acompanhe seu progresso, pontos e atividades concluídas na LingoABC.",
+    canonical,
+    ogImage: mascot,
+    noindex: true,
+  });
   const [welcomeName, setWelcomeName] = useState<string>("estudante");
   const [points, setPoints] = useState<number>(0);
   const [lessonsTotal, setLessonsTotal] = useState<number>(0);

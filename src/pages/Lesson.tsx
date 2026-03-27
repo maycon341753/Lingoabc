@@ -7,6 +7,8 @@ import confetti from "@/lib/confetti";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/lib/supabase";
+import { useSeo } from "@/lib/useSeo";
+import mascot from "@/assets/mascot-owl.png";
 
 type LessonType = "multiple_choice" | "drag_order" | "complete_word" | "image_match";
 
@@ -718,6 +720,17 @@ const LessonPage = () => {
   const materia = (searchParams.get("materia") || "math").toLowerCase();
   const modulo = searchParams.get("modulo") || "Descoberta";
   const lessonId = Number(searchParams.get("licao") || "1");
+  const origin = typeof window !== "undefined" ? window.location.origin : "";
+  const path = typeof window !== "undefined" ? `${window.location.pathname}${window.location.search}` : "/licao";
+  const canonical = origin ? `${origin}${path}` : path;
+  const materiaLabel = materia === "math" ? "Matemática" : materia === "port" ? "Português" : "Inglês";
+  useSeo({
+    title: `Lição ${lessonId} — ${materiaLabel} (${modulo}) | LingoABC`,
+    description: "Lição interativa da LingoABC. Faça login para salvar o progresso e liberar conteúdos.",
+    canonical,
+    ogImage: mascot,
+    noindex: true,
+  });
 
   useEffect(() => {
     if (!user?.id) return;

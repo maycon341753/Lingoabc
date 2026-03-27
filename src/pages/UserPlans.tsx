@@ -6,6 +6,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/lib/supabase";
+import mascot from "@/assets/mascot-owl.png";
+import { useSeo } from "@/lib/useSeo";
 import { QrCode } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -72,6 +74,15 @@ const getToken = async () => {
 const UserPlansPage = () => {
   const { loading: authLoading, user, userLabel } = useAuth();
   const navigate = useNavigate();
+  const origin = typeof window !== "undefined" ? window.location.origin : "";
+  const canonical = origin ? `${origin}/usuario/planos` : "/usuario/planos";
+  useSeo({
+    title: "Assinatura | LingoABC",
+    description: "Gerencie sua assinatura e pagamentos na LingoABC.",
+    canonical,
+    ogImage: mascot,
+    noindex: true,
+  });
 
   const [plans, setPlans] = useState<DbPlanRow[]>([]);
   const [plansError, setPlansError] = useState<string | null>(null);

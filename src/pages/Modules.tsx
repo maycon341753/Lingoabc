@@ -6,6 +6,8 @@ import Footer from "@/components/landing/Footer";
 import { useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/lib/supabase";
+import mascot from "@/assets/mascot-owl.png";
+import { useSeo } from "@/lib/useSeo";
 
 const subjects = [
   { id: "math", name: "Matemática", icon: Calculator, color: "bg-secondary" },
@@ -133,6 +135,22 @@ const subjectIdToSlug = (id: string) => {
   return "matematica";
 };
 
+const moduleNameToSlug = (name: string) => {
+  const v = String(name ?? "").toLowerCase().trim();
+  if (v === "descoberta") return "descoberta";
+  if (v === "construção" || v === "construcao") return "construcao";
+  if (v === "desenvolvimento") return "desenvolvimento";
+  if (v === "domínio" || v === "dominio") return "dominio";
+  return "descoberta";
+};
+
+const moduleSlugToIndex = (raw: string | undefined) => {
+  const v = String(raw ?? "").toLowerCase().trim();
+  const names = ["descoberta", "construcao", "desenvolvimento", "dominio"];
+  const i = names.indexOf(v);
+  return i >= 0 ? i : null;
+};
+
 const ModulesPage = () => {
   const [selectedModule, setSelectedModule] = useState(0);
   const [selectedSubject, setSelectedSubject] = useState("math");
@@ -143,26 +161,39 @@ const ModulesPage = () => {
   const [moduleProgressCount, setModuleProgressCount] = useState<Record<string, number>>({});
   const reduceMotion = true;
   const navigate = useNavigate();
-  const { subject: subjectParam } = useParams();
+  const { subject: subjectParam, module: moduleParam } = useParams();
   const { loading, user, hasSubscription } = useAuth();
   const effectiveHasSubscription = subActive ?? hasSubscription;
   const isSubscriber = !loading && !!user && effectiveHasSubscription;
   const isFreeUser = !loading && !!user && !effectiveHasSubscription;
+  const isGuest = !loading && !user;
   const moduleLocks = useMemo(() => {
     if (isSubscriber) return new Array(modules.length).fill(false);
+    if (isGuest) return new Array(modules.length).fill(false);
     return modules.map((_, i) => {
       if (i === 0) return false;
       const prevName = modules[i - 1]?.name ?? "Descoberta";
       const prevCount = Number(moduleProgressCount[prevName] ?? 0);
       return prevCount < 40;
     });
-  }, [isSubscriber, moduleProgressCount]);
+  }, [isGuest, isSubscriber, moduleProgressCount]);
 
-  useEffect(() => {
-    if (!loading && !user) {
-      navigate("/login");
-    }
-  }, [loading, user, navigate]);
+  const moduleName = modules[selectedModule]?.name ?? "Descoberta";
+  const subjectLabel =
+    selectedSubject === "math" ? "Matemática" : selectedSubject === "port" ? "Português" : selectedSubject === "eng" ? "Inglês" : "Matemática";
+  const origin = typeof window !== "undefined" ? window.location.origin : "";
+  const canonical = origin
+    ? `${origin}/modulos/${encodeURIComponent(subjectIdToSlug(selectedSubject))}/${encodeURIComponent(moduleNameToSlug(moduleName))}`
+    : `/modulos/${encodeURIComponent(subjectIdToSlug(selectedSubject))}/${encodeURIComponent(moduleNameToSlug(moduleName))}`;
+  useSeo({
+    title: `Módulos de ${subjectLabel} (${moduleName}) | LingoABC`,
+    description:
+      "Plataforma educacional infantil com módulos por faixa etária. Educação infantil online para aprender brincando com lições gamificadas e reforço escolar infantil.",
+    keywords:
+      "plataforma educacional infantil, educação infantil online, reforço escolar infantil, aprender brincando, ensino para crianças",
+    canonical,
+    ogImage: mascot,
+  });
 
   useEffect(() => {
     const mapped = subjectParamToId(subjectParam);
@@ -170,6 +201,12 @@ const ModulesPage = () => {
     setSelectedSubject(mapped);
     setSelectedModule(0);
   }, [subjectParam]);
+
+  useEffect(() => {
+    const mapped = moduleSlugToIndex(moduleParam);
+    if (mapped == null) return;
+    setSelectedModule(mapped);
+  }, [moduleParam]);
 
   useEffect(() => {
     if (!user?.id) return;
@@ -279,9 +316,11 @@ const ModulesPage = () => {
   }, [selectedSubject, user?.id]);
 
   const lessons = useMemo(() => {
-    const moduleName = modules[selectedModule]?.name ?? "Descoberta";
     const base = generateLessons(40, selectedSubject, moduleName);
     return base.map((l) => {
+      if (isGuest) {
+        return { ...l, completed: false, locked: true };
+      }
       if (isFreeUser) {
         const completed = l.id === 1 && completedIds.includes(1);
         const locked = l.id !== 1;
@@ -292,7 +331,7 @@ const ModulesPage = () => {
       const locked = false;
       return { ...l, completed, locked };
     });
-  }, [completedIds, isFreeUser, moduleProgressCount, selectedModule, selectedSubject]);
+  }, [completedIds, isFreeUser, isGuest, moduleName, moduleProgressCount, selectedSubject]);
 
   return (
     <div className="min-h-screen">
@@ -325,6 +364,7 @@ const ModulesPage = () => {
             const onClick = () => {
               if (moduleLocks[i]) return;
               setSelectedModule(i);
+              navigate(`/modulos/${subjectIdToSlug(selectedSubject)}/${moduleNameToSlug(m.name)}`);
             };
 
             if (reduceMotion) {
@@ -363,7 +403,10 @@ const ModulesPage = () => {
                   ? `${s.color} text-primary-foreground shadow-playful`
                   : "bg-muted text-muted-foreground hover:bg-muted/80"
               }`}
-              onClick={() => navigate(`/modulos/${subjectIdToSlug(s.id)}`)}
+              onClick={() => {
+                const currentModule = modules[selectedModule]?.name ?? "Descoberta";
+                navigate(`/modulos/${subjectIdToSlug(s.id)}/${moduleNameToSlug(currentModule)}`);
+              }}
             >
               <s.icon className="w-4 h-4" />
               {s.name}
@@ -396,11 +439,14 @@ const ModulesPage = () => {
                 <Star className="w-5 h-5 mb-0.5 text-sun" />
               );
               const onClick = () => {
+                if (isGuest) {
+                  navigate("/login");
+                  return;
+                }
                 if (lesson.locked) {
                   if (isFreeUser && lesson.id !== 1) navigate("/planos");
                   return;
                 }
-                const moduleName = modules[selectedModule]?.name ?? "Descoberta";
                 navigate(`/licao?modulo=${encodeURIComponent(moduleName)}&materia=${encodeURIComponent(selectedSubject)}&licao=${lesson.id}`);
               };
               return (
@@ -436,11 +482,14 @@ const ModulesPage = () => {
                   <Star className="w-5 h-5 mb-0.5 text-sun" />
                 );
                 const onClick = () => {
+                  if (isGuest) {
+                    navigate("/login");
+                    return;
+                  }
                   if (lesson.locked) {
                     if (isFreeUser && lesson.id !== 1) navigate("/planos");
                     return;
                   }
-                  const moduleName = modules[selectedModule]?.name ?? "Descoberta";
                   navigate(`/licao?modulo=${encodeURIComponent(moduleName)}&materia=${encodeURIComponent(selectedSubject)}&licao=${lesson.id}`);
                 };
                 return (

@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import Navbar from "@/components/landing/Navbar";
 import Footer from "@/components/landing/Footer";
 import { supabase } from "@/lib/supabase";
+import mascot from "@/assets/mascot-owl.png";
+import { useSeo } from "@/lib/useSeo";
 
 type MediaRow = {
   id: string;
@@ -17,6 +19,17 @@ type MediaRow = {
 };
 
 const VideosPage = () => {
+  const origin = typeof window !== "undefined" ? window.location.origin : "";
+  const canonical = origin ? `${origin}/videos` : "/videos";
+  useSeo({
+    title: "Vídeos Educativos e Músicas | LingoABC",
+    description:
+      "Conteúdos educativos para crianças: vídeos e músicas para aprender brincando. Ideal para educação infantil online e reforço escolar infantil.",
+    keywords:
+      "educação infantil online, aprender brincando, plataforma educacional infantil, vídeos educativos para crianças, músicas educativas, reforço escolar infantil",
+    canonical,
+    ogImage: mascot,
+  });
   const [items, setItems] = useState<MediaRow[]>([]);
   const [loading, setLoading] = useState(true);
   const ordered = useMemo(() => {

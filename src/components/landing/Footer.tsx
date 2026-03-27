@@ -25,6 +25,7 @@ const Footer = () => {
             <h4 className="font-display font-bold mb-3">Plataforma</h4>
             <ul className="space-y-2 text-sm text-muted-foreground">
               <li><Link to="/planos" className="hover:text-primary transition-colors">Planos</Link></li>
+              <li><Link to="/blog" className="hover:text-primary transition-colors">Blog</Link></li>
               <li>
                 <Link
                   to="/modulos"

@@ -4,6 +4,8 @@ import { Button } from "@/components/ui/button";
 import { supabase } from "@/lib/supabase";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+import mascot from "@/assets/mascot-owl.png";
+import { useSeo } from "@/lib/useSeo";
 
 type ProfileRow = {
   name: string | null;
@@ -70,6 +72,15 @@ const ProfilePage = () => {
   const [syncing, setSyncing] = useState(false);
   const navigate = useNavigate();
   const { signOut } = useAuth();
+  const origin = typeof window !== "undefined" ? window.location.origin : "";
+  const canonical = origin ? `${origin}/perfil` : "/perfil";
+  useSeo({
+    title: "Meu Perfil | LingoABC",
+    description: "Gerencie seus dados e acompanhe informações do seu plano na LingoABC.",
+    canonical,
+    ogImage: mascot,
+    noindex: true,
+  });
 
   const statusNorm = String(plan?.subscription_status ?? "").toLowerCase();
   const expiresAtMs = plan?.expires_at ? new Date(plan.expires_at).getTime() : null;

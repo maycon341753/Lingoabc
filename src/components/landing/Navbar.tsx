@@ -38,6 +38,11 @@ const Navbar = () => {
             </Link>
           )}
           {!userLabel && (
+            <Link to="/blog" className="text-sm font-semibold text-muted-foreground hover:text-foreground transition-colors">
+              Blog
+            </Link>
+          )}
+          {!userLabel && (
             <Link to="/sobre" className="text-sm font-semibold text-muted-foreground hover:text-foreground transition-colors">
               Sobre
             </Link>
@@ -110,6 +115,11 @@ const Navbar = () => {
               {!userLabel && (
                 <Link to="/planos" className="text-sm font-semibold py-2" onClick={() => setOpen(false)}>
                   Planos
+                </Link>
+              )}
+              {!userLabel && (
+                <Link to="/blog" className="text-sm font-semibold py-2" onClick={() => setOpen(false)}>
+                  Blog
                 </Link>
               )}
               {!userLabel && (

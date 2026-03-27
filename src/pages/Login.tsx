@@ -8,8 +8,18 @@ import { Link, useNavigate } from "react-router-dom";
 import mascot from "@/assets/mascot-owl.png";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/contexts/AuthContext";
+import { useSeo } from "@/lib/useSeo";
 
 const LoginPage = () => {
+  const origin = typeof window !== "undefined" ? window.location.origin : "";
+  const canonical = origin ? `${origin}/login` : "/login";
+  useSeo({
+    title: "Entrar | LingoABC",
+    description: "Acesse sua conta na LingoABC para continuar as lições e acompanhar o progresso.",
+    canonical,
+    ogImage: mascot,
+    noindex: true,
+  });
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);

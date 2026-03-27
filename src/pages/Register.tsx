@@ -8,6 +8,7 @@ import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import mascot from "@/assets/mascot-owl.png";
 import { supabase } from "@/lib/supabase";
 import { Eye, EyeOff } from "lucide-react";
+import { useSeo } from "@/lib/useSeo";
 
 const formatCpf = (value: string) => {
   const digits = value.replace(/\D/g, "").slice(0, 11);
@@ -18,6 +19,15 @@ const formatCpf = (value: string) => {
 };
 
 const RegisterPage = () => {
+  const origin = typeof window !== "undefined" ? window.location.origin : "";
+  const canonical = origin ? `${origin}/cadastro` : "/cadastro";
+  useSeo({
+    title: "Cadastro | LingoABC",
+    description: "Crie sua conta na LingoABC e comece grátis. Educação infantil online para aprender brincando.",
+    canonical,
+    ogImage: mascot,
+    noindex: true,
+  });
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");

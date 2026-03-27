@@ -2,8 +2,20 @@ import { motion } from "framer-motion";
 import Navbar from "@/components/landing/Navbar";
 import Footer from "@/components/landing/Footer";
 import mascot from "@/assets/mascot-owl.png";
+import { useSeo } from "@/lib/useSeo";
 
 const AboutPage = () => {
+  const origin = typeof window !== "undefined" ? window.location.origin : "";
+  const canonical = origin ? `${origin}/sobre` : "/sobre";
+  useSeo({
+    title: "Sobre | LingoABC",
+    description:
+      "Conheça a LingoABC: plataforma educacional infantil gamificada para educação infantil online e reforço escolar infantil. Aprender brincando com segurança e progresso.",
+    keywords:
+      "plataforma educacional infantil, educação infantil online, reforço escolar infantil, aprender brincando, ensino para crianças, gamificação",
+    canonical,
+    ogImage: mascot,
+  });
   return (
     <div className="min-h-screen">
       <Navbar />

@@ -2,6 +2,8 @@ import Navbar from "@/components/landing/Navbar";
 import Footer from "@/components/landing/Footer";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/lib/supabase";
+import mascot from "@/assets/mascot-owl.png";
+import { useSeo } from "@/lib/useSeo";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
@@ -44,6 +46,15 @@ const fmtDate = (iso: string | null) => {
 };
 
 const UserInvoicesPage = () => {
+  const origin = typeof window !== "undefined" ? window.location.origin : "";
+  const canonical = origin ? `${origin}/usuario/faturas` : "/usuario/faturas";
+  useSeo({
+    title: "Faturas | LingoABC",
+    description: "Acompanhe e acesse suas faturas na LingoABC.",
+    canonical,
+    ogImage: mascot,
+    noindex: true,
+  });
   const { loading, user } = useAuth();
   const navigate = useNavigate();
   const [items, setItems] = useState<InvoiceItem[]>([]);
