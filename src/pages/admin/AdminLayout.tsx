@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import Navbar from "@/components/landing/Navbar";
-import { Settings, LayoutDashboard, GraduationCap, BookOpen, Users, CreditCard, Film, BarChart3, BadgePercent, NotebookPen } from "lucide-react";
+import { Settings, LayoutDashboard, GraduationCap, BookOpen, Users, CreditCard, Film, BarChart3, BadgePercent, NotebookPen, ListChecks } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 
 const items = [
@@ -19,7 +19,7 @@ const items = [
 
 const AdminLayout = () => {
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const { loading, user, isAdmin } = useAuth();
+  const { loading, user, isAdmin, isSuperAdmin } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -64,7 +64,7 @@ const AdminLayout = () => {
             </button>
           </div>
           <nav className="px-2 space-y-1">
-            {items.map((t) => (
+            {[...items, ...(isSuperAdmin ? [{ to: "/admin/questoes", label: "Questões", icon: ListChecks }] : [])].map((t) => (
               <NavLink
                 key={t.to}
                 to={t.to}

@@ -6,6 +6,7 @@ type AuthContextType = {
   user: User | null;
   userLabel: string | null;
   isAdmin: boolean;
+  isSuperAdmin: boolean;
   hasSubscription: boolean;
   loading: boolean;
   signOut: () => Promise<void>;
@@ -15,6 +16,7 @@ const AuthContext = createContext<AuthContextType>({
   user: null,
   userLabel: null,
   isAdmin: false,
+  isSuperAdmin: false,
   hasSubscription: false,
   loading: true,
   signOut: async () => {},
@@ -24,6 +26,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [userLabel, setUserLabel] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const [hasSubscription, setHasSubscription] = useState(false);
   const [loading, setLoading] = useState(true);
   const expiresTimeoutRef = useRef<number | null>(null);
@@ -62,6 +65,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           setUser(null);
           setUserLabel(null);
           setIsAdmin(false);
+          setIsSuperAdmin(false);
           setHasSubscription(false);
           setLoading(false);
         }
@@ -117,6 +121,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       if (mounted) {
         if (data?.name) setUserLabel(data.name);
         setIsAdmin(data?.role === "admin" || data?.role === "super_admin");
+        setIsSuperAdmin(data?.role === "super_admin");
         setHasSubscription(isActive);
         setLoading(false);
       }
@@ -154,7 +159,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, userLabel, isAdmin, hasSubscription, loading, signOut }}>
+    <AuthContext.Provider value={{ user, userLabel, isAdmin, isSuperAdmin, hasSubscription, loading, signOut }}>
       {children}
     </AuthContext.Provider>
   );

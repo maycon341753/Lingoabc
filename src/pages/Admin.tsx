@@ -9,6 +9,7 @@ import PlansManagePage from "./admin/PlansManagePage";
 import ReferralsPage from "./admin/ReferralsPage";
 import VideosPage from "./admin/VideosPage";
 import ReportsPage from "./admin/ReportsPage";
+import LessonQuestionSetsPage from "./admin/LessonQuestionSetsPage";
 
 const AdminRoutes = () => (
   <Routes>
@@ -23,6 +24,7 @@ const AdminRoutes = () => (
       <Route path="indicacoes" element={<ReferralsPage />} />
       <Route path="videos" element={<VideosPage />} />
       <Route path="relatorios" element={<ReportsPage />} />
+      <Route path="questoes" element={<LessonQuestionSetsPage />} />
       <Route path="*" element={<Navigate to="dashboard" replace />} />
     </Route>
   </Routes>
