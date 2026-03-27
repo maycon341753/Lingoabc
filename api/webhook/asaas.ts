@@ -9,6 +9,25 @@ const formatCpf = (digits: string) => {
   return `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6, 9)}-${d.slice(9, 11)}`;
 };
 
+const decodeJwtPayload = (token: string) => {
+  try {
+    const part = token.split(".")[1] ?? "";
+    const normalized = part.replace(/-/g, "+").replace(/_/g, "/").padEnd(Math.ceil(part.length / 4) * 4, "=");
+    const json = Buffer.from(normalized, "base64").toString("utf8");
+    const obj = JSON.parse(json) as unknown;
+    if (typeof obj === "object" && obj !== null) return obj as Record<string, unknown>;
+    return null;
+  } catch {
+    return null;
+  }
+};
+
+const decodeJwtRole = (token: string) => {
+  const payload = decodeJwtPayload(token);
+  const role = typeof payload?.role === "string" ? String(payload.role) : "";
+  return role || null;
+};
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "POST") return res.status(405).send("Method Not Allowed");
   const secret = process.env.ASSAS_WEBHOOK_SECRET;
@@ -29,10 +48,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (!token || token !== expected) return res.status(401).send("Invalid token");
 
   const apiKeyRaw = process.env.ASSAS_API_KEY;
-  const supaUrl = process.env.SUPABASE_URL;
-  const supaKey = process.env.SUPABASE_SERVICE_ROLE;
-  if (!apiKeyRaw || !supaUrl || !supaKey) return res.status(500).send("Missing server environment variables");
+  const supaUrlRaw = process.env.SUPABASE_URL;
+  const supaKeyRaw = process.env.SUPABASE_SERVICE_ROLE;
+  if (!apiKeyRaw || !supaUrlRaw || !supaKeyRaw) return res.status(500).send("Missing server environment variables");
   const apiKey = String(apiKeyRaw).trim();
+  const supaUrl = String(supaUrlRaw).trim();
+  const supaKey = String(supaKeyRaw).trim();
+  if (!/^https:\/\/.+\.supabase\.co\/?$/i.test(supaUrl)) return res.status(500).send("Invalid SUPABASE_URL");
+  if (decodeJwtRole(supaKey) !== "service_role") return res.status(500).send("Invalid SUPABASE_SERVICE_ROLE");
 
   const supabase = createClient(supaUrl, supaKey);
 

@@ -25,6 +25,12 @@ const decodeJwtPayload = (token: string) => {
   }
 };
 
+const decodeJwtRole = (token: string) => {
+  const payload = decodeJwtPayload(token);
+  const role = typeof payload?.role === "string" ? String(payload.role) : "";
+  return role || null;
+};
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const origin = pickFirstHeader(req.headers.origin);
   if (origin && isAllowedOrigin(origin)) {
@@ -37,9 +43,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method === "OPTIONS") return res.status(204).end();
   if (req.method !== "POST") return res.status(405).json({ error: "method_not_allowed" });
 
-  const supaUrl = process.env.SUPABASE_URL;
-  const supaServiceKey = process.env.SUPABASE_SERVICE_ROLE;
-  if (!supaUrl || !supaServiceKey) return res.status(500).json({ error: "missing_server_env", required: ["SUPABASE_URL", "SUPABASE_SERVICE_ROLE"] });
+  const supaUrlRaw = process.env.SUPABASE_URL;
+  const supaServiceKeyRaw = process.env.SUPABASE_SERVICE_ROLE;
+  if (!supaUrlRaw || !supaServiceKeyRaw) {
+    return res.status(500).json({ error: "missing_server_env", required: ["SUPABASE_URL", "SUPABASE_SERVICE_ROLE"] });
+  }
+  const supaUrl = String(supaUrlRaw).trim();
+  const supaServiceKey = String(supaServiceKeyRaw).trim();
+  if (!/^https:\/\/.+\.supabase\.co\/?$/i.test(supaUrl)) {
+    return res.status(500).json({ error: "invalid_server_env", invalid: ["SUPABASE_URL"] });
+  }
+  const serviceRole = decodeJwtRole(supaServiceKey);
+  if (serviceRole !== "service_role") {
+    return res.status(500).json({ error: "invalid_server_env", invalid: ["SUPABASE_SERVICE_ROLE"] });
+  }
   const supabase = createClient(supaUrl, supaServiceKey);
 
   const authHeader = pickFirstHeader(req.headers.authorization);
