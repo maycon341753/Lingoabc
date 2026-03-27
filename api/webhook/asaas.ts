@@ -3,6 +3,12 @@ import { createClient } from "@supabase/supabase-js";
 
 const asaasBaseUrl = (process.env.ASAAS_API_URL || "https://api.asaas.com/v3").replace(/\/+$/, "");
 
+const formatCpf = (digits: string) => {
+  const d = digits.replace(/\D/g, "").slice(0, 11);
+  if (d.length !== 11) return null;
+  return `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6, 9)}-${d.slice(9, 11)}`;
+};
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "POST") return res.status(405).send("Method Not Allowed");
   const secret = process.env.ASSAS_WEBHOOK_SECRET;
@@ -140,6 +146,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   let customerEmail: string | null = null;
+  let customerCpfCnpj: string | null = null;
   try {
     if (customerId) {
       const resp = await fetch(`${asaasBaseUrl}/customers/${customerId}`, {
@@ -147,25 +154,43 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       });
       const j = await resp.json();
       customerEmail = typeof j?.email === "string" ? j.email : null;
+      const rawCpf = typeof j?.cpfCnpj === "string" ? String(j.cpfCnpj) : "";
+      const digits = rawCpf.replace(/\D/g, "");
+      customerCpfCnpj = digits.length === 11 || digits.length === 14 ? digits : null;
     }
   } catch {
     customerEmail = null;
+    customerCpfCnpj = null;
   }
 
-  if (!customerEmail) {
-    return res.status(200).json({ ok: true, info: "no_email", paymentId });
+  let userId: string | null = null;
+  if (customerEmail) {
+    const { data: userRow } = await supabase.from("v_admin_users").select("user_id").eq("email", customerEmail).maybeSingle();
+    userId = userRow?.user_id ?? null;
   }
 
-  const { data: userRow } = await supabase.from("v_admin_users").select("user_id").eq("email", customerEmail).maybeSingle();
-  const userId = userRow?.user_id ?? null;
-  if (!userId) return res.status(200).json({ ok: true, info: "no_user", email: customerEmail });
+  if (!userId && customerCpfCnpj) {
+    const cpfFormatted = customerCpfCnpj.length === 11 ? formatCpf(customerCpfCnpj) : null;
+    const { data: profRow } = await supabase
+      .from("profiles")
+      .select("id,cpf")
+      .or(cpfFormatted ? `cpf.eq.${customerCpfCnpj},cpf.eq.${cpfFormatted}` : `cpf.eq.${customerCpfCnpj}`)
+      .limit(1)
+      .maybeSingle();
+    userId = (profRow as { id?: string } | null)?.id ?? null;
+  }
+
+  if (!userId) {
+    return res.status(200).json({ ok: true, info: "no_user_match", email: customerEmail, cpfCnpj: customerCpfCnpj });
+  }
+
   let cpfCnpj: string | null = null;
   try {
     const { data: cpfRow } = await supabase.from("profiles").select("cpf").eq("id", userId).maybeSingle();
     const digits = String((cpfRow as { cpf?: string | null } | null)?.cpf ?? "").replace(/\D/g, "");
-    cpfCnpj = digits.length === 11 || digits.length === 14 ? digits : null;
+    cpfCnpj = digits.length === 11 || digits.length === 14 ? digits : customerCpfCnpj;
   } catch {
-    cpfCnpj = null;
+    cpfCnpj = customerCpfCnpj;
   }
 
   const planName = description;
