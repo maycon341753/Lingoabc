@@ -34,6 +34,7 @@ const ModulesPage = () => {
   const [completedIds, setCompletedIds] = useState<number[]>([]);
   const [completedModules, setCompletedModules] = useState<boolean[]>([]);
   const [subActive, setSubActive] = useState<boolean | null>(null);
+  const [moduleProgressCount, setModuleProgressCount] = useState<Record<string, number>>({});
   const navigate = useNavigate();
   const { loading, user, hasSubscription } = useAuth();
   const effectiveHasSubscription = subActive ?? hasSubscription;
@@ -41,9 +42,11 @@ const ModulesPage = () => {
   const moduleLocks = useMemo(() => {
     return modules.map((_, i) => {
       if (i === 0) return false;
-      return !completedModules[i - 1];
+      const prevName = modules[i - 1]?.name ?? "Descoberta";
+      const prevCount = Number(moduleProgressCount[prevName] ?? 0);
+      return prevCount < 40;
     });
-  }, [completedModules]);
+  }, [moduleProgressCount]);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -121,16 +124,38 @@ const ModulesPage = () => {
   useEffect(() => {
     try {
       const arr = modules.map((m) => {
-        const key = `progressCompleted:${selectedSubject}:${m.name}`;
-        const raw = window.localStorage.getItem(key);
-        const ids = raw ? (JSON.parse(raw) as number[]) : [];
-        return Array.isArray(ids) && ids.length >= 40;
+        const count = Number(moduleProgressCount[m.name] ?? 0);
+        return count >= 40;
       });
       setCompletedModules(arr);
     } catch {
       setCompletedModules(new Array(modules.length).fill(false));
     }
-  }, [selectedSubject]);
+  }, [moduleProgressCount, selectedSubject]);
+
+  useEffect(() => {
+    if (!user?.id) return;
+    let mounted = true;
+    const run = async () => {
+      const { data } = await supabase
+        .from("user_module_progress")
+        .select("module,subject,completed_lessons,completed")
+        .eq("user_id", user.id)
+        .eq("subject", selectedSubject);
+      if (!mounted) return;
+      const map: Record<string, number> = {};
+      for (const r of Array.isArray(data) ? data : []) {
+        const name = String((r as { module?: string | null }).module ?? "");
+        const cnt = Number((r as { completed_lessons?: number | null }).completed_lessons ?? 0);
+        map[name] = Math.max(0, Math.min(40, cnt));
+      }
+      setModuleProgressCount(map);
+    };
+    run();
+    return () => {
+      mounted = false;
+    };
+  }, [selectedSubject, user?.id]);
 
   const lessons = useMemo(() => {
     const base = generateLessons(40);
@@ -140,11 +165,13 @@ const ModulesPage = () => {
         const locked = l.id !== 1;
         return { ...l, completed, locked };
       }
-      const completed = completedIds.includes(l.id);
-      const locked = l.id > 1 && !completedIds.includes(l.id - 1);
+      const moduleName = modules[selectedModule]?.name ?? "Descoberta";
+      const count = Number(moduleProgressCount[moduleName] ?? 0);
+      const completed = l.id <= count || completedIds.includes(l.id);
+      const locked = l.id > count + 1;
       return { ...l, completed, locked };
     });
-  }, [completedIds, isFreeUser]);
+  }, [completedIds, isFreeUser, moduleProgressCount, selectedModule]);
 
   return (
     <div className="min-h-screen">

@@ -533,6 +533,28 @@ const LessonPage = () => {
     if (!finished) return;
     const run = async () => {
       if (!user?.id) return;
+      const countRow = await supabase
+        .from("user_module_progress")
+        .select("id,completed_lessons")
+        .eq("user_id", user.id)
+        .eq("subject", materia)
+        .eq("module", modulo)
+        .maybeSingle();
+      const prevCount = Number(((countRow.data as { completed_lessons?: number | null } | null)?.completed_lessons ?? 0));
+      const nextCount = Math.max(prevCount, lessonId);
+      await supabase
+        .from("user_module_progress")
+        .upsert(
+          {
+            user_id: user.id,
+            subject: materia,
+            module: modulo,
+            completed_lessons: nextCount,
+            completed: nextCount >= 40,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: "user_id,subject,module" },
+        );
       const payload = {
         user_id: user.id,
         subject: materia,
