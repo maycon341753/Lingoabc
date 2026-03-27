@@ -32,11 +32,6 @@ const Navbar = () => {
 
         {/* Desktop */}
         <div className="hidden md:flex items-center gap-6">
-          {userLabel && (
-            <Button variant="outline" className="rounded-xl font-bold" onClick={() => navigate("/modulos")}>
-              Módulos
-            </Button>
-          )}
           {!userLabel && (
             <Link to="/planos" className="text-sm font-semibold text-muted-foreground hover:text-foreground transition-colors">
               Planos
@@ -54,6 +49,9 @@ const Navbar = () => {
               </Link>
               <Button variant="outline" className="rounded-xl font-bold" onClick={() => navigate("/perfil")}>
                 Perfil
+              </Button>
+              <Button variant="outline" className="rounded-xl font-bold" onClick={() => navigate("/modulos")}>
+                Módulos
               </Button>
               <Button variant="outline" className="rounded-xl font-bold" onClick={() => navigate("/usuario/faturas")}>
                 Faturas
@@ -109,18 +107,6 @@ const Navbar = () => {
             exit={{ height: 0, opacity: 0 }}
           >
             <div className="flex flex-col gap-3 pt-2">
-              {userLabel && (
-                <Button
-                  variant="outline"
-                  className="rounded-xl font-bold"
-                  onClick={() => {
-                    navigate("/modulos");
-                    setOpen(false);
-                  }}
-                >
-                  Módulos
-                </Button>
-              )}
               {!userLabel && (
                 <Link to="/planos" className="text-sm font-semibold py-2" onClick={() => setOpen(false)}>
                   Planos
@@ -145,6 +131,16 @@ const Navbar = () => {
                     }}
                   >
                     Perfil
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="rounded-xl font-bold"
+                    onClick={() => {
+                      navigate("/modulos");
+                      setOpen(false);
+                    }}
+                  >
+                    Módulos
                   </Button>
                   <Button
                     variant="outline"
