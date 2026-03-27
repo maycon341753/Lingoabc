@@ -19,6 +19,30 @@ const fmtNum = (n: number) => new Intl.NumberFormat("pt-BR").format(n);
 
 const toIso = (d: Date) => d.toISOString();
 
+const safeStr = (v: unknown, maxLen: number) => String(v ?? "").trim().slice(0, maxLen);
+
+const normalizeReferrer = (ref: string | null) => {
+  const raw = safeStr(ref, 300);
+  if (!raw) return "Direto";
+  try {
+    const u = new URL(raw);
+    return u.hostname || raw;
+  } catch {
+    return raw;
+  }
+};
+
+const clickLabelFromMeta = (meta: Record<string, unknown> | null) => {
+  if (!meta) return null;
+  const tag = safeStr(meta.tag, 20).toLowerCase();
+  const text = safeStr(meta.text, 80);
+  const href = safeStr(meta.href, 200);
+  if (!text) return null;
+  const suffix = href ? ` • ${href}` : "";
+  if (tag === "a" || tag === "button") return `${text}${suffix}`;
+  return text;
+};
+
 const SeoPage = () => {
   useSeo({
     title: "SEO & Acessos | Admin | LingoABC",
@@ -35,6 +59,8 @@ const SeoPage = () => {
   const [lastEvents, setLastEvents] = useState<AppEventRow[]>([]);
   const [pageViews24h, setPageViews24h] = useState<Record<string, number>>({});
   const [clicks24h, setClicks24h] = useState<Record<string, number>>({});
+  const [topButtons24h, setTopButtons24h] = useState<Record<string, number>>({});
+  const [topReferrers24h, setTopReferrers24h] = useState<Record<string, number>>({});
   const [activeSessions5m, setActiveSessions5m] = useState(0);
   const [events24h, setEvents24h] = useState(0);
   const realtimeRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
@@ -54,13 +80,25 @@ const SeoPage = () => {
   const aggregate = (rows: AppEventRow[]) => {
     const pv: Record<string, number> = {};
     const cl: Record<string, number> = {};
+    const btn: Record<string, number> = {};
+    const ref: Record<string, number> = {};
     for (const r of rows) {
       const path = String(r.path ?? "").trim() || "—";
       if (r.event_type === "page_view") pv[path] = (pv[path] ?? 0) + 1;
       if (r.event_type === "click") cl[path] = (cl[path] ?? 0) + 1;
+
+      const refKey = normalizeReferrer(r.referrer);
+      ref[refKey] = (ref[refKey] ?? 0) + 1;
+
+      if (r.event_type === "click") {
+        const label = clickLabelFromMeta(r.metadata);
+        if (label) btn[label] = (btn[label] ?? 0) + 1;
+      }
     }
     setPageViews24h(pv);
     setClicks24h(cl);
+    setTopButtons24h(btn);
+    setTopReferrers24h(ref);
   };
 
   useEffect(() => {
@@ -127,6 +165,12 @@ const SeoPage = () => {
           const path = String(row.path ?? "").trim() || "—";
           if (row.event_type === "page_view") setPageViews24h((m) => ({ ...m, [path]: (m[path] ?? 0) + 1 }));
           if (row.event_type === "click") setClicks24h((m) => ({ ...m, [path]: (m[path] ?? 0) + 1 }));
+          const refKey = normalizeReferrer(row.referrer);
+          setTopReferrers24h((m) => ({ ...m, [refKey]: (m[refKey] ?? 0) + 1 }));
+          if (row.event_type === "click") {
+            const label = clickLabelFromMeta(row.metadata);
+            if (label) setTopButtons24h((m) => ({ ...m, [label]: (m[label] ?? 0) + 1 }));
+          }
         },
       )
       .subscribe();
@@ -224,6 +268,46 @@ const SeoPage = () => {
         </div>
       </div>
 
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="bg-card rounded-2xl shadow-card p-6">
+          <h3 className="font-display font-bold text-lg mb-4">🏆 Top botões clicados (24h)</h3>
+          {!ready ? (
+            <p className="text-muted-foreground font-bold">Carregando…</p>
+          ) : errorMsg ? (
+            <p className="text-destructive font-bold">{errorMsg}</p>
+          ) : (
+            <div className="space-y-3">
+              {topEntries(topButtons24h).map(([label, count]) => (
+                <div key={label} className="flex items-center justify-between gap-3">
+                  <div className="text-sm font-bold truncate">{label}</div>
+                  <div className="text-sm font-extrabold">{fmtNum(count)}</div>
+                </div>
+              ))}
+              {Object.keys(topButtons24h).length === 0 && <p className="text-muted-foreground font-bold">Sem dados.</p>}
+            </div>
+          )}
+        </div>
+
+        <div className="bg-card rounded-2xl shadow-card p-6">
+          <h3 className="font-display font-bold text-lg mb-4">🔗 Top referrers (24h)</h3>
+          {!ready ? (
+            <p className="text-muted-foreground font-bold">Carregando…</p>
+          ) : errorMsg ? (
+            <p className="text-destructive font-bold">{errorMsg}</p>
+          ) : (
+            <div className="space-y-3">
+              {topEntries(topReferrers24h).map(([label, count]) => (
+                <div key={label} className="flex items-center justify-between gap-3">
+                  <div className="text-sm font-bold truncate">{label}</div>
+                  <div className="text-sm font-extrabold">{fmtNum(count)}</div>
+                </div>
+              ))}
+              {Object.keys(topReferrers24h).length === 0 && <p className="text-muted-foreground font-bold">Sem dados.</p>}
+            </div>
+          )}
+        </div>
+      </div>
+
       <div className="bg-card rounded-2xl shadow-card p-6">
         <h3 className="font-display font-bold text-lg mb-4">⚡ Eventos em tempo real</h3>
         {!ready ? (
@@ -253,4 +337,3 @@ const SeoPage = () => {
 };
 
 export default SeoPage;
-
