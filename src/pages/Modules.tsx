@@ -244,43 +244,59 @@ const ModulesPage = () => {
     <div className="min-h-screen">
       <Navbar />
       <div className="container mx-auto max-w-6xl px-4 py-10">
-        <motion.h1
-          className="text-3xl md:text-4xl font-display font-extrabold mb-8 text-center"
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-        >
-          Escolha seu módulo 📚
-        </motion.h1>
+        {reduceMotion ? (
+          <h1 className="text-3xl md:text-4xl font-display font-extrabold mb-8 text-center">Escolha seu módulo 📚</h1>
+        ) : (
+          <motion.h1
+            className="text-3xl md:text-4xl font-display font-extrabold mb-8 text-center"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+          >
+            Escolha seu módulo 📚
+          </motion.h1>
+        )}
 
         {/* Module selector */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-10">
-          {modules.map((m, i) => (
-            <motion.button
-              key={m.name}
-              className={`rounded-2xl p-5 text-center transition-all ${
-                completedModules[i]
-                  ? `bg-primary text-primary-foreground shadow-playful ${selectedModule === i ? "scale-105" : ""}`
-                  : selectedModule === i
+          {modules.map((m, i) => {
+            const cls = `rounded-2xl p-5 text-center transition-all ${
+              completedModules[i]
+                ? `bg-primary text-primary-foreground shadow-playful ${selectedModule === i ? "scale-105" : ""}`
+                : selectedModule === i
                   ? `${m.gradient} text-primary-foreground shadow-playful scale-105`
                   : moduleLocks[i]
-                  ? "bg-muted text-muted-foreground cursor-not-allowed opacity-60"
-                  : "bg-card shadow-card hover:shadow-hover"
-              }`}
-              onClick={() => {
-                if (moduleLocks[i]) return;
-                setSelectedModule(i);
-              }}
-              whileHover={{ y: -2 }}
-              whileTap={{ scale: 0.97 }}
-            >
-              <span className="text-3xl block mb-1">{m.emoji}</span>
-              <span className="font-display font-bold text-sm">{m.name}</span>
-              <span className={`block text-xs ${selectedModule === i || completedModules[i] ? "text-primary-foreground/80" : "text-muted-foreground"}`}>
-                {m.age}
-              </span>
-              {moduleLocks[i] && <Lock className="w-4 h-4 mt-2 inline-block" />}
-            </motion.button>
-          ))}
+                    ? "bg-muted text-muted-foreground cursor-not-allowed opacity-60"
+                    : "bg-card shadow-card hover:shadow-hover"
+            }`;
+            const onClick = () => {
+              if (moduleLocks[i]) return;
+              setSelectedModule(i);
+            };
+
+            if (reduceMotion) {
+              return (
+                <button key={m.name} className={cls} onClick={onClick} type="button">
+                  <span className="text-3xl block mb-1">{m.emoji}</span>
+                  <span className="font-display font-bold text-sm">{m.name}</span>
+                  <span className={`block text-xs ${selectedModule === i || completedModules[i] ? "text-primary-foreground/80" : "text-muted-foreground"}`}>
+                    {m.age}
+                  </span>
+                  {moduleLocks[i] && <Lock className="w-4 h-4 mt-2 inline-block" />}
+                </button>
+              );
+            }
+
+            return (
+              <motion.button key={m.name} className={cls} onClick={onClick} whileHover={{ y: -2 }} whileTap={{ scale: 0.97 }} type="button">
+                <span className="text-3xl block mb-1">{m.emoji}</span>
+                <span className="font-display font-bold text-sm">{m.name}</span>
+                <span className={`block text-xs ${selectedModule === i || completedModules[i] ? "text-primary-foreground/80" : "text-muted-foreground"}`}>
+                  {m.age}
+                </span>
+                {moduleLocks[i] && <Lock className="w-4 h-4 mt-2 inline-block" />}
+              </motion.button>
+            );
+          })}
         </div>
 
         {/* Subject tabs */}
@@ -308,15 +324,9 @@ const ModulesPage = () => {
         </div>
 
         {/* Lesson map */}
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={`${selectedModule}-${selectedSubject}`}
-            className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-8 gap-3"
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
-          >
-            {lessons.map((lesson, i) => {
+        {reduceMotion ? (
+          <div key={`${selectedModule}-${selectedSubject}`} className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-8 gap-3">
+            {lessons.map((lesson) => {
               const cls = `relative aspect-square rounded-2xl flex flex-col items-center justify-center font-bold transition-all ${
                 lesson.completed
                   ? "bg-primary text-primary-foreground shadow-playful"
@@ -339,35 +349,66 @@ const ModulesPage = () => {
                 const moduleName = modules[selectedModule]?.name ?? "Descoberta";
                 navigate(`/licao?modulo=${encodeURIComponent(moduleName)}&materia=${encodeURIComponent(selectedSubject)}&licao=${lesson.id}`);
               };
-
-              if (reduceMotion) {
-                return (
-                  <button key={lesson.id} className={cls} onClick={onClick} type="button">
-                    {icon}
-                    <span className="text-xs">{lesson.id}</span>
-                  </button>
-                );
-              }
-
               return (
-                <motion.button
-                  key={lesson.id}
-                  className={cls}
-                  initial={{ opacity: 0, scale: 0.92 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  transition={{ delay: i * 0.01 }}
-                  whileHover={!lesson.locked ? { scale: 1.07, y: -3 } : {}}
-                  whileTap={!lesson.locked ? { scale: 0.97 } : {}}
-                  onClick={onClick}
-                  type="button"
-                >
+                <button key={lesson.id} className={cls} onClick={onClick} type="button">
                   {icon}
                   <span className="text-xs">{lesson.id}</span>
-                </motion.button>
+                </button>
               );
             })}
-          </motion.div>
-        </AnimatePresence>
+          </div>
+        ) : (
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={`${selectedModule}-${selectedSubject}`}
+              className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-8 gap-3"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+            >
+              {lessons.map((lesson, i) => {
+                const cls = `relative aspect-square rounded-2xl flex flex-col items-center justify-center font-bold transition-all ${
+                  lesson.completed
+                    ? "bg-primary text-primary-foreground shadow-playful"
+                    : lesson.locked
+                      ? "bg-muted text-muted-foreground cursor-not-allowed opacity-60"
+                      : "bg-card shadow-card hover:shadow-hover text-foreground"
+                }`;
+                const icon = lesson.completed ? (
+                  <CheckCircle className="w-6 h-6 mb-0.5" />
+                ) : lesson.locked ? (
+                  <Lock className="w-5 h-5 mb-0.5" />
+                ) : (
+                  <Star className="w-5 h-5 mb-0.5 text-sun" />
+                );
+                const onClick = () => {
+                  if (lesson.locked) {
+                    if (isFreeUser && lesson.id !== 1) navigate("/planos");
+                    return;
+                  }
+                  const moduleName = modules[selectedModule]?.name ?? "Descoberta";
+                  navigate(`/licao?modulo=${encodeURIComponent(moduleName)}&materia=${encodeURIComponent(selectedSubject)}&licao=${lesson.id}`);
+                };
+                return (
+                  <motion.button
+                    key={lesson.id}
+                    className={cls}
+                    initial={{ opacity: 0, scale: 0.92 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ delay: i * 0.01 }}
+                    whileHover={!lesson.locked ? { scale: 1.07, y: -3 } : {}}
+                    whileTap={!lesson.locked ? { scale: 0.97 } : {}}
+                    onClick={onClick}
+                    type="button"
+                  >
+                    {icon}
+                    <span className="text-xs">{lesson.id}</span>
+                  </motion.button>
+                );
+              })}
+            </motion.div>
+          </AnimatePresence>
+        )}
       </div>
       <Footer />
     </div>
