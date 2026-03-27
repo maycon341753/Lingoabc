@@ -80,6 +80,14 @@ const ModulesPage = () => {
   const [completedModules, setCompletedModules] = useState<boolean[]>([]);
   const [subActive, setSubActive] = useState<boolean | null>(null);
   const [moduleProgressCount, setModuleProgressCount] = useState<Record<string, number>>({});
+  const reduceMotion = useMemo(() => {
+    if (typeof window === "undefined") return true;
+    try {
+      return window.matchMedia("(prefers-reduced-motion: reduce)").matches || window.innerWidth < 640;
+    } catch {
+      return true;
+    }
+  }, []);
   const navigate = useNavigate();
   const { subject: subjectParam } = useParams();
   const { loading, user, hasSubscription } = useAuth();
@@ -308,40 +316,56 @@ const ModulesPage = () => {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -10 }}
           >
-            {lessons.map((lesson, i) => (
-              <motion.button
-                key={lesson.id}
-                className={`relative aspect-square rounded-2xl flex flex-col items-center justify-center font-bold transition-all ${
-                  lesson.completed
-                    ? "bg-primary text-primary-foreground shadow-playful"
-                    : lesson.locked
+            {lessons.map((lesson, i) => {
+              const cls = `relative aspect-square rounded-2xl flex flex-col items-center justify-center font-bold transition-all ${
+                lesson.completed
+                  ? "bg-primary text-primary-foreground shadow-playful"
+                  : lesson.locked
                     ? "bg-muted text-muted-foreground cursor-not-allowed opacity-60"
                     : "bg-card shadow-card hover:shadow-hover text-foreground"
-                }`}
-                initial={{ opacity: 0, scale: 0.8 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ delay: i * 0.02 }}
-                whileHover={!lesson.locked ? { scale: 1.1, y: -4 } : {}}
-                whileTap={!lesson.locked ? { scale: 0.95 } : {}}
-                onClick={() => {
-                  if (lesson.locked) {
-                    if (isFreeUser && lesson.id !== 1) navigate("/planos");
-                    return;
-                  }
-                  const moduleName = modules[selectedModule]?.name ?? "Descoberta";
-                  navigate(`/licao?modulo=${encodeURIComponent(moduleName)}&materia=${encodeURIComponent(selectedSubject)}&licao=${lesson.id}`);
-                }}
-              >
-                {lesson.completed ? (
-                  <CheckCircle className="w-6 h-6 mb-0.5" />
-                ) : lesson.locked ? (
-                  <Lock className="w-5 h-5 mb-0.5" />
-                ) : (
-                  <Star className="w-5 h-5 mb-0.5 text-sun" />
-                )}
-                <span className="text-xs">{lesson.id}</span>
-              </motion.button>
-            ))}
+              }`;
+              const icon = lesson.completed ? (
+                <CheckCircle className="w-6 h-6 mb-0.5" />
+              ) : lesson.locked ? (
+                <Lock className="w-5 h-5 mb-0.5" />
+              ) : (
+                <Star className="w-5 h-5 mb-0.5 text-sun" />
+              );
+              const onClick = () => {
+                if (lesson.locked) {
+                  if (isFreeUser && lesson.id !== 1) navigate("/planos");
+                  return;
+                }
+                const moduleName = modules[selectedModule]?.name ?? "Descoberta";
+                navigate(`/licao?modulo=${encodeURIComponent(moduleName)}&materia=${encodeURIComponent(selectedSubject)}&licao=${lesson.id}`);
+              };
+
+              if (reduceMotion) {
+                return (
+                  <button key={lesson.id} className={cls} onClick={onClick} type="button">
+                    {icon}
+                    <span className="text-xs">{lesson.id}</span>
+                  </button>
+                );
+              }
+
+              return (
+                <motion.button
+                  key={lesson.id}
+                  className={cls}
+                  initial={{ opacity: 0, scale: 0.92 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ delay: i * 0.01 }}
+                  whileHover={!lesson.locked ? { scale: 1.07, y: -3 } : {}}
+                  whileTap={!lesson.locked ? { scale: 0.97 } : {}}
+                  onClick={onClick}
+                  type="button"
+                >
+                  {icon}
+                  <span className="text-xs">{lesson.id}</span>
+                </motion.button>
+              );
+            })}
           </motion.div>
         </AnimatePresence>
       </div>
