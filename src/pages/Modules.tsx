@@ -6,6 +6,7 @@ import Footer from "@/components/landing/Footer";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/lib/supabase";
+import { Lock } from "lucide-react";
 
 const subjects = [
   { id: "math", name: "Matemática", icon: Calculator, color: "bg-secondary" },
@@ -37,6 +38,12 @@ const ModulesPage = () => {
   const { loading, user, hasSubscription } = useAuth();
   const effectiveHasSubscription = subActive ?? hasSubscription;
   const isFreeUser = !loading && !!user && !effectiveHasSubscription;
+  const moduleLocks = useMemo(() => {
+    return modules.map((_, i) => {
+      if (i === 0) return false;
+      return !completedModules[i - 1];
+    });
+  }, [completedModules]);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -134,7 +141,7 @@ const ModulesPage = () => {
         return { ...l, completed, locked };
       }
       const completed = completedIds.includes(l.id);
-      const locked = false;
+      const locked = l.id > 1 && !completedIds.includes(l.id - 1);
       return { ...l, completed, locked };
     });
   }, [completedIds, isFreeUser]);
@@ -161,9 +168,14 @@ const ModulesPage = () => {
                   ? `bg-primary text-primary-foreground shadow-playful ${selectedModule === i ? "scale-105" : ""}`
                   : selectedModule === i
                   ? `${m.gradient} text-primary-foreground shadow-playful scale-105`
+                  : moduleLocks[i]
+                  ? "bg-muted text-muted-foreground cursor-not-allowed opacity-60"
                   : "bg-card shadow-card hover:shadow-hover"
               }`}
-              onClick={() => setSelectedModule(i)}
+              onClick={() => {
+                if (moduleLocks[i]) return;
+                setSelectedModule(i);
+              }}
               whileHover={{ y: -2 }}
               whileTap={{ scale: 0.97 }}
             >
@@ -172,6 +184,7 @@ const ModulesPage = () => {
               <span className={`block text-xs ${selectedModule === i || completedModules[i] ? "text-primary-foreground/80" : "text-muted-foreground"}`}>
                 {m.age}
               </span>
+              {moduleLocks[i] && <Lock className="w-4 h-4 mt-2 inline-block" />}
             </motion.button>
           ))}
         </div>
