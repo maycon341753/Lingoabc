@@ -47,10 +47,71 @@ const mathLessonTitle = (phase: string, lessonId: number) => {
   return `Problemas em 2 etapas (${step})`;
 };
 
+const portLessonTitle = (phase: string, lessonId: number) => {
+  const p = phase.toLowerCase();
+  const step = Math.max(1, Math.min(40, Number(lessonId) || 1));
+  if (p === "descoberta") {
+    if (step <= 10) return `Letras e vogais (A–E–I–O–U)`;
+    if (step <= 20) return `Sílabas simples (BA, LA, GA)`;
+    if (step <= 30) return `Palavras curtas (CASA, BOLA, SAPO)`;
+    return `Maior/menor palavra e ordem alfabética`;
+  }
+  if (p === "construção" || p === "construcao") {
+    if (step <= 10) return `Famílias silábicas (PA–PE–PI–PO–PU)`;
+    if (step <= 20) return `Leitura e formação de palavras`;
+    if (step <= 30) return `Ortografia simples (M/N, R/L)`;
+    return `Frases curtas e pontuação básica`;
+  }
+  if (p === "desenvolvimento") {
+    if (step <= 10) return `Textos curtos e interpretação`;
+    if (step <= 20) return `Sinônimos e antônimos básicos`;
+    if (step <= 30) return `Separação silábica e acentuação`;
+    return `Classes de palavras (substantivo/adjetivo)`;
+  }
+  if (step <= 10) return `Concordância simples`;
+  if (step <= 20) return `Pontuação (., ?)`;
+  if (step <= 30) return `Coesão e sequência de ideias`;
+  return `Interpretação de texto`;
+};
+
+const engLessonTitle = (phase: string, lessonId: number) => {
+  const p = phase.toLowerCase();
+  const step = Math.max(1, Math.min(40, Number(lessonId) || 1));
+  if (p === "descoberta") {
+    if (step <= 10) return `Animais e objetos (vocabulário básico)`;
+    if (step <= 20) return `Cores e formas`;
+    if (step <= 30) return `Números 1–20`;
+    return `Saudações e frases simples`;
+  }
+  if (p === "construção" || p === "construcao") {
+    if (step <= 10) return `Alimentos e família`;
+    if (step <= 20) return `Dias da semana e rotina`;
+    if (step <= 30) return `Perguntas simples (What/Where/How)`;
+    return `Frases curtas e compreensão`;
+  }
+  if (p === "desenvolvimento") {
+    if (step <= 10) return `Adjetivos e opostos`;
+    if (step <= 20) return `Verbos do dia a dia`;
+    if (step <= 30) return `Partes do corpo e roupas`;
+    return `Preposições e direções`;
+  }
+  if (step <= 10) return `Tempo verbal básico (present simple)`;
+  if (step <= 20) return `Perguntas e respostas`;
+  if (step <= 30) return `Interpretação de texto curto`;
+  return `Vocabulário temático avançado`;
+};
+
 const generateLessons = (count: number, subject: string, phase: string) =>
   Array.from({ length: count }, (_, i) => {
     const lessonId = i + 1;
-    const title = subject === "math" ? mathLessonTitle(phase, lessonId) : `Lição ${lessonId}`;
+    const title =
+      subject === "math"
+        ? mathLessonTitle(phase, lessonId)
+        : subject === "port"
+        ? portLessonTitle(phase, lessonId)
+        : subject === "eng"
+        ? engLessonTitle(phase, lessonId)
+        : `Lição ${lessonId}`;
     return { id: lessonId, title };
   });
 
