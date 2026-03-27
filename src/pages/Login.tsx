@@ -21,6 +21,7 @@ const LoginPage = () => {
   const successRedirectedRef = useRef(false);
   const { signOut } = useAuth();
   const navigate = useNavigate();
+  const isMobile = typeof navigator !== "undefined" && /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
 
   useEffect(() => {
     let mounted = true;
@@ -77,8 +78,8 @@ const LoginPage = () => {
     <div className="min-h-screen flex items-center justify-center px-4 py-12">
       <motion.div
         className="w-full max-w-md bg-card rounded-3xl shadow-card p-8"
-        initial={{ opacity: 0, y: 30 }}
-        animate={{ opacity: 1, y: 0 }}
+        initial={isMobile ? undefined : { opacity: 0, y: 30 }}
+        animate={isMobile ? undefined : { opacity: 1, y: 0 }}
       >
         <div className="text-center mb-8">
           <Link to="/" className="inline-block">
@@ -88,28 +89,30 @@ const LoginPage = () => {
           <p className="text-muted-foreground text-sm mt-1">Entre na sua conta</p>
         </div>
 
-        <Dialog
-          open={successOpen}
-          onOpenChange={(open) => {
-            setSuccessOpen(open);
-            if (!open) proceedToTarget();
-          }}
-        >
-          <DialogContent className="sm:max-w-md">
-            <DialogHeader>
-              <DialogTitle>Acesso liberado</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-2">
-              <p className="font-bold">Bem-vindo, {successName}!</p>
-              <p className="text-sm text-muted-foreground">Redirecionando…</p>
-            </div>
-            <div className="pt-4">
-              <Button className="w-full bg-gradient-hero rounded-xl font-bold" type="button" onClick={proceedToTarget}>
-                Continuar
-              </Button>
-            </div>
-          </DialogContent>
-        </Dialog>
+        {!isMobile && (
+          <Dialog
+            open={successOpen}
+            onOpenChange={(open) => {
+              setSuccessOpen(open);
+              if (!open) proceedToTarget();
+            }}
+          >
+            <DialogContent className="sm:max-w-md">
+              <DialogHeader>
+                <DialogTitle>Acesso liberado</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-2">
+                <p className="font-bold">Bem-vindo, {successName}!</p>
+                <p className="text-sm text-muted-foreground">Redirecionando…</p>
+              </div>
+              <div className="pt-4">
+                <Button className="w-full bg-gradient-hero rounded-xl font-bold" type="button" onClick={proceedToTarget}>
+                  Continuar
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+        )}
 
         {loggedUserLabel && (
           <div className="mb-4 rounded-xl border border-border bg-muted/50 px-4 py-3 text-sm">
@@ -172,10 +175,14 @@ const LoginPage = () => {
             successRedirectedRef.current = false;
             setSuccessName(identified);
             setSuccessTarget(isAdmin ? "/admin" : "/usuario/dashboard");
-            setSuccessOpen(true);
-            window.setTimeout(() => {
-              proceedToTarget();
-            }, 1200);
+            if (isMobile) {
+              navigate(isAdmin ? "/admin" : "/usuario/dashboard");
+            } else {
+              setSuccessOpen(true);
+              window.setTimeout(() => {
+                proceedToTarget();
+              }, 1200);
+            }
           }}
         >
           <div>
