@@ -20,6 +20,10 @@ type SubscriptionWithPlanRow = {
 };
 
 const buildApiUrl = (path: string) => {
+  if (typeof window !== "undefined") {
+    const host = window.location.hostname;
+    if (host === "localhost" || host === "127.0.0.1") return path;
+  }
   const base = String(import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/+$/, "");
   if (!base) return path;
   return `${base}${path.startsWith("/") ? "" : "/"}${path}`;
