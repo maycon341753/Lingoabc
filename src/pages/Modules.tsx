@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Lock, Star, CheckCircle, BookOpen, Calculator, Globe } from "lucide-react";
 import Navbar from "@/components/landing/Navbar";
 import Footer from "@/components/landing/Footer";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/lib/supabase";
 
@@ -20,11 +20,57 @@ const modules = [
   { name: "Domínio", age: "10+ anos", emoji: "👑", gradient: "bg-gradient-warm" },
 ];
 
-const generateLessons = (count: number) =>
-  Array.from({ length: count }, (_, i) => ({
-    id: i + 1,
-    title: `Lição ${i + 1}`,
-  }));
+const mathLessonTitle = (phase: string, lessonId: number) => {
+  const p = phase.toLowerCase();
+  const step = Math.max(1, Math.min(40, Number(lessonId) || 1));
+  if (p === "descoberta") {
+    if (step <= 10) return `Contagem e números até ${Math.min(10, 3 + step)}`;
+    if (step <= 20) return `Somando até ${Math.min(20, 8 + step)}`;
+    if (step <= 30) return `Subtraindo até ${Math.min(20, 6 + step)}`;
+    return `Maior, menor e sequência (${step})`;
+  }
+  if (p === "construção" || p === "construcao") {
+    if (step <= 10) return `Somar e subtrair até ${Math.min(30, 10 + step * 2)}`;
+    if (step <= 20) return `Dezenas e unidades (${step})`;
+    if (step <= 30) return `Problemas de adição (${step})`;
+    return `Problemas de subtração (${step})`;
+  }
+  if (p === "desenvolvimento") {
+    if (step <= 10) return `Tabuada (2–5) (${step})`;
+    if (step <= 20) return `Multiplicação e divisão (${step})`;
+    if (step <= 30) return `Medidas e tempo (${step})`;
+    return `Frações básicas (${step})`;
+  }
+  if (step <= 10) return `Tabuada (6–9) (${step})`;
+  if (step <= 20) return `Divisão com resultado exato (${step})`;
+  if (step <= 30) return `Porcentagem e dinheiro (${step})`;
+  return `Problemas em 2 etapas (${step})`;
+};
+
+const generateLessons = (count: number, subject: string, phase: string) =>
+  Array.from({ length: count }, (_, i) => {
+    const lessonId = i + 1;
+    const title = subject === "math" ? mathLessonTitle(phase, lessonId) : `Lição ${lessonId}`;
+    return { id: lessonId, title };
+  });
+
+const subjectParamToId = (raw: string | undefined) => {
+  const v = String(raw ?? "")
+    .toLowerCase()
+    .trim();
+  if (!v) return null;
+  if (v === "math" || v === "matematica" || v === "matemática") return "math";
+  if (v === "port" || v === "portugues" || v === "português") return "port";
+  if (v === "eng" || v === "ingles" || v === "inglês") return "eng";
+  return null;
+};
+
+const subjectIdToSlug = (id: string) => {
+  if (id === "math") return "matematica";
+  if (id === "port") return "portugues";
+  if (id === "eng") return "ingles";
+  return "matematica";
+};
 
 const ModulesPage = () => {
   const [selectedModule, setSelectedModule] = useState(0);
@@ -35,6 +81,7 @@ const ModulesPage = () => {
   const [subActive, setSubActive] = useState<boolean | null>(null);
   const [moduleProgressCount, setModuleProgressCount] = useState<Record<string, number>>({});
   const navigate = useNavigate();
+  const { subject: subjectParam } = useParams();
   const { loading, user, hasSubscription } = useAuth();
   const effectiveHasSubscription = subActive ?? hasSubscription;
   const isSubscriber = !loading && !!user && effectiveHasSubscription;
@@ -54,6 +101,13 @@ const ModulesPage = () => {
       navigate("/login");
     }
   }, [loading, user, navigate]);
+
+  useEffect(() => {
+    const mapped = subjectParamToId(subjectParam);
+    if (!mapped) return;
+    setSelectedSubject(mapped);
+    setSelectedModule(0);
+  }, [subjectParam]);
 
   useEffect(() => {
     if (!user?.id) return;
@@ -163,20 +217,20 @@ const ModulesPage = () => {
   }, [selectedSubject, user?.id]);
 
   const lessons = useMemo(() => {
-    const base = generateLessons(40);
+    const moduleName = modules[selectedModule]?.name ?? "Descoberta";
+    const base = generateLessons(40, selectedSubject, moduleName);
     return base.map((l) => {
       if (isFreeUser) {
         const completed = l.id === 1 && completedIds.includes(1);
         const locked = l.id !== 1;
         return { ...l, completed, locked };
       }
-      const moduleName = modules[selectedModule]?.name ?? "Descoberta";
       const count = Number(moduleProgressCount[moduleName] ?? 0);
       const completed = l.id <= count || completedIds.includes(l.id);
       const locked = false;
       return { ...l, completed, locked };
     });
-  }, [completedIds, isFreeUser, moduleProgressCount, selectedModule]);
+  }, [completedIds, isFreeUser, moduleProgressCount, selectedModule, selectedSubject]);
 
   return (
     <div className="min-h-screen">
@@ -231,7 +285,7 @@ const ModulesPage = () => {
                   ? `${s.color} text-primary-foreground shadow-playful`
                   : "bg-muted text-muted-foreground hover:bg-muted/80"
               }`}
-              onClick={() => setSelectedSubject(s.id)}
+              onClick={() => navigate(`/modulos/${subjectIdToSlug(s.id)}`)}
             >
               <s.icon className="w-4 h-4" />
               {s.name}

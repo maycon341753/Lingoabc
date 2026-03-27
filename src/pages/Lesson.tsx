@@ -82,47 +82,157 @@ const clampInt = (v: number, min: number, max: number) => Math.max(min, Math.min
 
 const genMathQuestions = (modulo: string, lessonId: number, rand: () => number): Question[] => {
   const phase = modulo.toLowerCase();
-  const maxN =
-    phase === "descoberta" ? 5 : phase === "construção" || phase === "construcao" ? 10 : phase === "desenvolvimento" ? 20 : 50;
-  const ops = phase === "descoberta" ? ["+"] : phase === "construção" || phase === "construcao" ? ["+", "-"] : ["+", "-", "+"];
+  const isDesc = phase === "descoberta";
+  const isConst = phase === "construção" || phase === "construcao";
+  const isDev = phase === "desenvolvimento";
+  const step = Math.max(1, Math.min(40, Number(lessonId) || 1));
+  const maxN = isDesc ? 5 + Math.floor((step - 1) / 10) * 5 : isConst ? 15 + Math.floor((step - 1) / 10) * 10 : isDev ? 30 + Math.floor((step - 1) / 10) * 20 : 80 + Math.floor((step - 1) / 10) * 40;
+
   const makeChoice = (correct: number) => {
     const opts = new Set<number>([correct]);
     while (opts.size < 4) {
       const delta = clampInt(Math.round((rand() - 0.5) * maxN), -maxN, maxN);
       opts.add(clampInt(correct + delta, 0, maxN * 2));
     }
-    return shuffle(Array.from(opts), rand);
+    return shuffle(Array.from(opts), rand).map(String);
   };
+
   const qs: Question[] = [];
-  for (let i = 0; i < 6; i += 1) {
-    const op = ops[Math.floor(rand() * ops.length)] ?? "+";
+
+  const addSub = () => {
+    const op = isDesc ? (step <= 20 ? "+" : "-") : isConst ? (rand() < 0.55 ? "+" : "-") : rand() < 0.5 ? "+" : "-";
     const a = clampInt(Math.floor(rand() * (maxN + 1)), 0, maxN);
     const b = clampInt(Math.floor(rand() * (maxN + 1)), 0, maxN);
     const correct = op === "-" ? Math.max(0, a - b) : a + b;
-    const options = makeChoice(correct).map(String);
+    const options = makeChoice(correct);
     qs.push({
       type: "multiple_choice",
-      question: `Lição ${lessonId}: Quanto é ${a} ${op} ${b}?`,
+      question: `Lição ${step}: Quanto é ${a} ${op} ${b}?`,
       options,
       correct: options.findIndex((x) => Number(x) === correct),
     });
+  };
+
+  const multDiv = () => {
+    const allowDiv = isDev || (!isDesc && !isConst);
+    const op = allowDiv ? (rand() < 0.55 ? "×" : "÷") : "×";
+    const aBase = clampInt(Math.floor(rand() * 10) + 2, 2, 12);
+    const bBase = clampInt(Math.floor(rand() * 10) + 2, 2, 12);
+    if (op === "÷") {
+      const divisor = aBase;
+      const factor = bBase;
+      const dividend = divisor * factor;
+      const correct = factor;
+      const options = makeChoice(correct);
+      qs.push({
+        type: "multiple_choice",
+        question: `Lição ${step}: Quanto é ${dividend} ÷ ${divisor}?`,
+        options,
+        correct: options.findIndex((x) => Number(x) === correct),
+      });
+      return;
+    }
+    const correct = aBase * bBase;
+    const options = makeChoice(correct);
+    qs.push({
+      type: "multiple_choice",
+      question: `Lição ${step}: Quanto é ${aBase} × ${bBase}?`,
+      options,
+      correct: options.findIndex((x) => Number(x) === correct),
+    });
+  };
+
+  const compare = () => {
+    const a = clampInt(Math.floor(rand() * (maxN + 1)), 0, maxN);
+    const b = clampInt(Math.floor(rand() * (maxN + 1)), 0, maxN);
+    const correct = a === b ? "=" : a > b ? ">" : "<";
+    const options = shuffle(["<", ">", "="], rand);
+    qs.push({
+      type: "multiple_choice",
+      question: `Lição ${step}: Complete: ${a} __ ${b}`,
+      options,
+      correct: options.findIndex((x) => x === correct),
+    });
+  };
+
+  const missingNumber = () => {
+    const a = clampInt(Math.floor(rand() * (maxN + 1)), 0, maxN);
+    const b = clampInt(Math.floor(rand() * (maxN + 1)), 0, maxN);
+    const sum = a + b;
+    const hideLeft = rand() < 0.5;
+    const correct = hideLeft ? a : b;
+    const options = makeChoice(correct);
+    qs.push({
+      type: "multiple_choice",
+      question: `Lição ${step}: Complete: ${hideLeft ? "?" : a} + ${hideLeft ? b : "?"} = ${sum}`,
+      options,
+      correct: options.findIndex((x) => Number(x) === correct),
+    });
+  };
+
+  const wordProblem = () => {
+    const a = clampInt(Math.floor(rand() * (maxN + 1)), 1, maxN);
+    const b = clampInt(Math.floor(rand() * (maxN + 1)), 1, maxN);
+    const add = rand() < 0.5;
+    const correct = add ? a + b : Math.max(0, a - b);
+    const options = makeChoice(correct);
+    const q = add
+      ? `Lição ${step}: Ana tinha ${a} figurinhas e ganhou ${b}. Quantas ficou?`
+      : `Lição ${step}: João tinha ${a} balas e comeu ${b}. Quantas sobraram?`;
+    qs.push({ type: "multiple_choice", question: q, options, correct: options.findIndex((x) => Number(x) === correct) });
+  };
+
+  const ordering = (n: number) => {
+    const nums = Array.from({ length: n }, () => clampInt(Math.floor(rand() * (maxN + 1)), 0, maxN));
+    const sorted = [...nums].sort((x, y) => x - y).map(String);
+    qs.push({
+      type: "drag_order",
+      question: n === 4 ? `Organize em ordem crescente:` : `Ordene de menor para maior:`,
+      items: shuffle(sorted, rand),
+      correctOrder: sorted,
+    });
+  };
+
+  if (isDesc) {
+    for (let i = 0; i < 3; i += 1) addSub();
+    compare();
+    ordering(4);
+    ordering(3);
+    wordProblem();
+    missingNumber();
+    return qs.slice(0, 8);
   }
-  const nums = pickN(Array.from({ length: 4 }, () => clampInt(Math.floor(rand() * (maxN + 1)), 0, maxN)), 4, rand);
-  const sorted = [...nums].sort((x, y) => x - y);
-  qs.push({
-    type: "drag_order",
-    question: `Organize os números em ordem crescente:`,
-    items: shuffle(sorted.map(String), rand),
-    correctOrder: sorted.map(String),
-  });
-  const nums2 = pickN(Array.from({ length: 3 }, () => clampInt(Math.floor(rand() * (maxN + 1)), 0, maxN)), 3, rand);
-  const sorted2 = [...nums2].sort((x, y) => x - y);
-  qs.push({
-    type: "drag_order",
-    question: `Ordene de menor para maior:`,
-    items: shuffle(sorted2.map(String), rand),
-    correctOrder: sorted2.map(String),
-  });
+
+  if (isConst) {
+    for (let i = 0; i < 3; i += 1) addSub();
+    missingNumber();
+    wordProblem();
+    compare();
+    ordering(4);
+    ordering(3);
+    return qs.slice(0, 8);
+  }
+
+  if (isDev) {
+    multDiv();
+    multDiv();
+    addSub();
+    wordProblem();
+    compare();
+    ordering(4);
+    ordering(3);
+    missingNumber();
+    return qs.slice(0, 8);
+  }
+
+  multDiv();
+  multDiv();
+  addSub();
+  wordProblem();
+  missingNumber();
+  compare();
+  ordering(4);
+  ordering(3);
   return qs.slice(0, 8);
 };
 

@@ -189,9 +189,9 @@ const DashboardPage = () => {
           <h3 className="font-display font-bold text-xl mb-4">Acesso rápido</h3>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {[
-              { emoji: "📐", label: "Matemática", onClick: () => navigate("/modulos") },
-              { emoji: "📖", label: "Português", onClick: () => navigate("/modulos") },
-              { emoji: "🌍", label: "Inglês", onClick: () => navigate("/modulos") },
+              { emoji: "📐", label: "Matemática", onClick: () => navigate("/modulos/matematica") },
+              { emoji: "📖", label: "Português", onClick: () => navigate("/modulos/portugues") },
+              { emoji: "🌍", label: "Inglês", onClick: () => navigate("/modulos/ingles") },
               { emoji: "🎵", label: "Vídeos e músicas", onClick: () => navigate("/videos") },
             ].map((item) => (
               <motion.button key={item.label} className="bg-card rounded-2xl shadow-card p-6 text-center hover:shadow-hover transition-shadow" whileHover={{ y: -4 }} whileTap={{ scale: 0.97 }} onClick={item.onClick}>
