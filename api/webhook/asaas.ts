@@ -66,6 +66,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const extLooksLikeUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(ext);
   if (extLooksLikeUuid) {
     const userId = ext;
+    let cpfCnpj: string | null = null;
+    try {
+      const { data: cpfRow } = await supabase.from("profiles").select("cpf").eq("id", userId).maybeSingle();
+      const digits = String((cpfRow as { cpf?: string | null } | null)?.cpf ?? "").replace(/\D/g, "");
+      cpfCnpj = digits.length === 11 || digits.length === 14 ? digits : null;
+    } catch {
+      cpfCnpj = null;
+    }
     const planName = description;
     const { data: planExact } = await supabase.from("plans").select("id,period_months,price").eq("name", planName).maybeSingle();
     let plan = planExact;
@@ -109,6 +117,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             {
               user_id: userId,
               payment_id: paymentId,
+              cpf_cnpj: cpfCnpj,
               customer_id: customerId,
               invoice_url: invoiceUrl,
               description,
@@ -150,6 +159,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const { data: userRow } = await supabase.from("v_admin_users").select("user_id").eq("email", customerEmail).maybeSingle();
   const userId = userRow?.user_id ?? null;
   if (!userId) return res.status(200).json({ ok: true, info: "no_user", email: customerEmail });
+  let cpfCnpj: string | null = null;
+  try {
+    const { data: cpfRow } = await supabase.from("profiles").select("cpf").eq("id", userId).maybeSingle();
+    const digits = String((cpfRow as { cpf?: string | null } | null)?.cpf ?? "").replace(/\D/g, "");
+    cpfCnpj = digits.length === 11 || digits.length === 14 ? digits : null;
+  } catch {
+    cpfCnpj = null;
+  }
 
   const planName = description;
   const { data: planExact } = await supabase.from("plans").select("id,period_months,price").eq("name", planName).maybeSingle();
@@ -194,6 +211,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           {
             user_id: userId,
             payment_id: paymentId,
+            cpf_cnpj: cpfCnpj,
             customer_id: customerId,
             invoice_url: invoiceUrl,
             description,

@@ -26,6 +26,12 @@ type SubscriptionRow = {
   plans: { name: string | null; billing_cycle: string | null; period_months: number | null } | null;
 };
 
+const formatCpf = (digits: string) => {
+  const d = digits.replace(/\D/g, "").slice(0, 11);
+  if (d.length !== 11) return null;
+  return `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6, 9)}-${d.slice(9, 11)}`;
+};
+
 const buildApiUrl = (path: string) => {
   if (typeof window !== "undefined") {
     const host = window.location.hostname;
@@ -61,6 +67,7 @@ const UserPlansPage = () => {
   const [pageLoading, setPageLoading] = useState(true);
 
   const [subscription, setSubscription] = useState<SubscriptionRow | null>(null);
+  const [cpfDigits, setCpfDigits] = useState<string>("");
 
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState<DbPlanRow | null>(null);
@@ -89,7 +96,7 @@ const UserPlansPage = () => {
     setPageLoading(true);
     setPlansError(null);
     try {
-      const [{ data: plansData, error: plansErr }, { data: subData }] = await Promise.all([
+      const [{ data: plansData, error: plansErr }, { data: subData }, { data: cpfData }] = await Promise.all([
         supabase.from("plans").select("id,name,price,period_months,billing_cycle").order("period_months", { ascending: true }),
         supabase
           .from("subscriptions")
@@ -98,6 +105,7 @@ const UserPlansPage = () => {
           .order("expires_at", { ascending: false, nullsFirst: false })
           .limit(1)
           .maybeSingle(),
+        supabase.from("profiles").select("cpf").eq("id", user.id).maybeSingle(),
       ]);
       if (plansErr) {
         setPlansError(plansErr.message);
@@ -106,6 +114,8 @@ const UserPlansPage = () => {
         setPlans((plansData ?? []) as DbPlanRow[]);
       }
       setSubscription((subData as SubscriptionRow | null) ?? null);
+      const cpfRaw = String((cpfData as { cpf?: string | null } | null)?.cpf ?? "");
+      setCpfDigits(cpfRaw.replace(/\D/g, "").slice(0, 11));
     } catch (e: unknown) {
       setPlansError(e instanceof Error ? e.message : "Falha ao carregar");
     } finally {
@@ -155,9 +165,7 @@ const UserPlansPage = () => {
     const customerEmail = user.email ?? undefined;
     const customerName = userLabel ?? customerEmail ?? "Usuário";
     let customerCpfCnpj: string | undefined = undefined;
-    const { data: cpfRow } = await supabase.from("profiles").select("cpf").eq("id", user.id).maybeSingle();
-    const digits = String((cpfRow as { cpf: string | null } | null)?.cpf ?? "").replace(/\D/g, "");
-    if (digits.length === 11 || digits.length === 14) customerCpfCnpj = digits;
+    if (cpfDigits.length === 11) customerCpfCnpj = cpfDigits;
 
     try {
       const r = await fetch(buildApiUrl("/api/asaas/checkout"), {
@@ -212,6 +220,7 @@ const UserPlansPage = () => {
             {
               user_id: user.id,
               payment_id: paymentId,
+              cpf_cnpj: cpfDigits.length === 11 ? cpfDigits : null,
               description: selectedPlan.name,
               billing_type: "PIX",
               status: "PENDING",
@@ -221,7 +230,24 @@ const UserPlansPage = () => {
             { onConflict: "payment_id" },
           )
           .select("payment_id");
-        if (payErr) throw payErr;
+        if (payErr) {
+          const { error: payErr2 } = await supabase
+            .from("asaas_payments")
+            .upsert(
+              {
+                user_id: user.id,
+                payment_id: paymentId,
+                description: selectedPlan.name,
+                billing_type: "PIX",
+                status: "PENDING",
+                value,
+                date_created: nowIso,
+              },
+              { onConflict: "payment_id" },
+            )
+            .select("payment_id");
+          if (payErr2) throw payErr2;
+        }
 
         const { data: existingSub, error: existingErr } = await supabase
           .from("subscriptions")
@@ -249,7 +275,7 @@ const UserPlansPage = () => {
           const lr = await fetch(buildApiUrl("/api/asaas/link"), {
             method: "POST",
             headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-            body: JSON.stringify({ paymentId, description: selectedPlan.name, value, billingType: "PIX" }),
+            body: JSON.stringify({ paymentId, description: selectedPlan.name, value, billingType: "PIX", cpfCnpj: customerCpfCnpj }),
           });
           if (!lr.ok) {
             const lj = await lr.json().catch(() => null);
@@ -267,7 +293,7 @@ const UserPlansPage = () => {
     } finally {
       setProcessing(false);
     }
-  }, [loadPage, processing, selectedPlan, user?.email, user?.id, userLabel]);
+  }, [cpfDigits, loadPage, processing, selectedPlan, user?.email, user?.id, userLabel]);
 
   const syncNow = useCallback(async (manual?: boolean) => {
     if (manual) setPaymentError(null);
@@ -382,6 +408,11 @@ const UserPlansPage = () => {
 
           <div className="grid gap-4">
             <p className="text-sm text-muted-foreground">Escaneie o QR Code no app do seu banco ou copie o código abaixo.</p>
+            {formatCpf(cpfDigits) && (
+              <p className="text-sm text-muted-foreground">
+                CPF vinculado: <span className="font-bold">{formatCpf(cpfDigits)}</span>
+              </p>
+            )}
 
             <div className="rounded-2xl border bg-background p-4 text-center">
               {pixQrImage ? (

@@ -55,6 +55,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const paymentId = isString(body.paymentId) ? body.paymentId : "";
   const description = isString(body.description) ? body.description : "Assinatura";
   const value = Number(body.value ?? 0);
+  const cpfCnpjRaw = isString(body.cpfCnpj) ? body.cpfCnpj : "";
+  const cpfCnpj = cpfCnpjRaw.replace(/\D/g, "");
   const dueDate = isString(body.dueDate) ? body.dueDate : null;
   const invoiceUrl = isString(body.invoiceUrl) ? body.invoiceUrl : null;
   const billingType = isString(body.billingType) ? body.billingType : "PIX";
@@ -68,6 +70,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       {
         user_id: userId,
         payment_id: paymentId,
+        cpf_cnpj: cpfCnpj.length === 11 || cpfCnpj.length === 14 ? cpfCnpj : null,
         invoice_url: invoiceUrl,
         description,
         billing_type: billingType,
