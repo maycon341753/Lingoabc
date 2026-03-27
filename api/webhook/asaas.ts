@@ -103,17 +103,28 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const status = confirmed ? "active" : canceled ? "inactive" : "pending";
     const amount = value || Number(plan?.price ?? 0);
 
-    await supabase
+    const subPayload = {
+      user_id: userId,
+      plan_id: planId,
+      status,
+      value: amount,
+      started_at: start.toISOString(),
+      expires_at: expires.toISOString(),
+    };
+
+    const { data: existingSub } = await supabase
       .from("subscriptions")
-      .upsert({
-        user_id: userId,
-        plan_id: planId,
-        status,
-        value: amount,
-        started_at: start.toISOString(),
-        expires_at: expires.toISOString(),
-      })
-      .select();
+      .select("id")
+      .eq("user_id", userId)
+      .order("expires_at", { ascending: false, nullsFirst: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (existingSub?.id) {
+      await supabase.from("subscriptions").update(subPayload).eq("id", existingSub.id);
+    } else {
+      await supabase.from("subscriptions").insert(subPayload);
+    }
 
     try {
       if (paymentId) {
@@ -216,17 +227,28 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const status = confirmed ? "active" : canceled ? "inactive" : "pending";
   const amount = value || Number(plan?.price ?? 0);
 
-  await supabase
+  const subPayload = {
+    user_id: userId,
+    plan_id: planId,
+    status,
+    value: amount,
+    started_at: start.toISOString(),
+    expires_at: expires.toISOString(),
+  };
+
+  const { data: existingSub } = await supabase
     .from("subscriptions")
-    .upsert({
-      user_id: userId,
-      plan_id: planId,
-      status,
-      value: amount,
-      started_at: start.toISOString(),
-      expires_at: expires.toISOString(),
-    })
-    .select();
+    .select("id")
+    .eq("user_id", userId)
+    .order("expires_at", { ascending: false, nullsFirst: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (existingSub?.id) {
+    await supabase.from("subscriptions").update(subPayload).eq("id", existingSub.id);
+  } else {
+    await supabase.from("subscriptions").insert(subPayload);
+  }
 
   try {
     if (paymentId) {

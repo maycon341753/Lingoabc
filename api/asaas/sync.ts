@@ -132,17 +132,29 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const amount = value || Number(plan?.price ?? 0);
 
-  const up = await supabaseAdmin
+  const subPayload = {
+    user_id: userId,
+    plan_id: planId,
+    status,
+    value: amount,
+    started_at: start.toISOString(),
+    expires_at: expires.toISOString(),
+  };
+
+  const { data: existingSub } = await supabaseAdmin
     .from("subscriptions")
-    .upsert({
-      user_id: userId,
-      plan_id: planId,
-      status,
-      value: amount,
-      started_at: start.toISOString(),
-      expires_at: expires.toISOString(),
-    })
-    .select("status,expires_at,plan_id");
+    .select("id")
+    .eq("user_id", userId)
+    .order("expires_at", { ascending: false, nullsFirst: false })
+    .limit(1)
+    .maybeSingle();
+
+  let up;
+  if (existingSub?.id) {
+    up = await supabaseAdmin.from("subscriptions").update(subPayload).eq("id", existingSub.id).select("status,expires_at,plan_id");
+  } else {
+    up = await supabaseAdmin.from("subscriptions").insert(subPayload).select("status,expires_at,plan_id");
+  }
 
   if (up.error) {
     const msg = String(up.error.message ?? "");
