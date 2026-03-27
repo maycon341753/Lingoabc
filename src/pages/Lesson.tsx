@@ -90,9 +90,17 @@ const genMathQuestions = (modulo: string, lessonId: number, rand: () => number):
 
   const makeChoice = (correct: number) => {
     const opts = new Set<number>([correct]);
+    let attempts = 0;
+    while (opts.size < 4 && attempts < 100) {
+      const delta = clampInt(Math.round((rand() - 0.5) * maxN * 2), -maxN * 2, maxN * 2);
+      opts.add(clampInt(correct + delta, 0, Math.max(correct * 2 + 10, maxN * 2)));
+      attempts++;
+    }
+    // Fallback if we couldn't generate enough unique options
+    let fallback = correct + 1;
     while (opts.size < 4) {
-      const delta = clampInt(Math.round((rand() - 0.5) * maxN), -maxN, maxN);
-      opts.add(clampInt(correct + delta, 0, maxN * 2));
+      opts.add(fallback);
+      fallback++;
     }
     return shuffle(Array.from(opts), rand).map(String);
   };
