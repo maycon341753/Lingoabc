@@ -38,7 +38,7 @@ const ReferralPage = () => {
   const referralUrl = useMemo(() => {
     const code = refLink?.code ?? "";
     if (!code) return "";
-    const u = new URL("/", window.location.origin);
+    const u = new URL("/cadastro", window.location.origin);
     u.searchParams.set("ref", code);
     return u.toString();
   }, [refLink?.code]);

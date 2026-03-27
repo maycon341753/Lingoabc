@@ -1,9 +1,10 @@
 import { useEffect } from "react";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
 
 const ReferralTracker = () => {
   const location = useLocation();
+  const navigate = useNavigate();
 
   useEffect(() => {
     const search = new URLSearchParams(location.search);
@@ -26,10 +27,15 @@ const ReferralTracker = () => {
     }
 
     supabase.rpc("referral_track_click", { p_code: code }).then(() => {});
-  }, [location.search]);
+    supabase.auth.getSession().then(({ data }) => {
+      const hasSession = !!data.session?.user?.id;
+      if (hasSession) return;
+      if (location.pathname === "/cadastro") return;
+      navigate(`/cadastro?ref=${encodeURIComponent(code)}`, { replace: true });
+    });
+  }, [location.pathname, location.search, navigate]);
 
   return null;
 };
 
 export default ReferralTracker;
-

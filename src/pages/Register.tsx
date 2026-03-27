@@ -1,10 +1,10 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import mascot from "@/assets/mascot-owl.png";
 import { supabase } from "@/lib/supabase";
 import { Eye, EyeOff } from "lucide-react";
@@ -28,7 +28,44 @@ const RegisterPage = () => {
   const [successMessage, setSuccessMessage] = useState("Conta criada com sucesso!");
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [refCode, setRefCode] = useState<string>("");
+  const [refOwnerName, setRefOwnerName] = useState<string | null>(null);
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+
+  useEffect(() => {
+    const fromUrl = String(searchParams.get("ref") ?? "").trim();
+    const fromStorage = String(window.localStorage.getItem("referral:code") ?? "").trim();
+    const code = fromUrl || fromStorage;
+    if (!code) {
+      setRefCode("");
+      setRefOwnerName(null);
+      return;
+    }
+    setRefCode(code);
+    try {
+      window.localStorage.setItem("referral:code", code);
+      window.localStorage.setItem("referral:ts", String(Date.now()));
+    } catch {
+      void 0;
+    }
+    let mounted = true;
+    supabase
+      .rpc("referral_get_owner", { p_code: code })
+      .then((r) => {
+        if (!mounted) return;
+        const row = Array.isArray(r.data) ? (r.data[0] as Record<string, unknown> | undefined) : ((r.data as Record<string, unknown> | null) ?? null);
+        const name = row && typeof row.owner_name === "string" ? String(row.owner_name) : null;
+        setRefOwnerName(name);
+      })
+      .catch(() => {
+        if (!mounted) return;
+        setRefOwnerName(null);
+      });
+    return () => {
+      mounted = false;
+    };
+  }, [searchParams]);
 
   return (
     <div className="min-h-screen flex items-center justify-center px-4 py-12">
@@ -68,6 +105,14 @@ const RegisterPage = () => {
           <h1 className="text-2xl font-display font-extrabold">Crie sua conta! 🎉</h1>
           <p className="text-muted-foreground text-sm mt-1">É grátis para começar</p>
         </div>
+        {!!refCode && (
+          <div className="bg-muted rounded-2xl px-4 py-3 mb-6">
+            <p className="text-xs font-bold text-muted-foreground">Indicação</p>
+            <p className="text-sm font-bold">
+              {refOwnerName ? `Indicado por: ${refOwnerName}` : `Indicado por código: ${refCode}`}
+            </p>
+          </div>
+        )}
 
         <form
           className="space-y-4"
