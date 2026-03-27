@@ -1,8 +1,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { createClient } from "@supabase/supabase-js";
 
-const asaasBaseUrl = (process.env.ASAAS_API_URL || "https://api.asaas.com/v3").replace(/\/+$/, "");
-
 const isAllowedOrigin = (origin: string) => {
   if (origin === "http://localhost:8080") return true;
   if (/^https:\/\/[a-z0-9-]+\.vercel\.app$/i.test(origin)) return true;
@@ -93,21 +91,28 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const expires = new Date();
   expires.setMonth(expires.getMonth() + (periodMonths > 0 ? periodMonths : 1));
 
-  await supabase
+  const subPayload = {
+    user_id: userId,
+    plan_id: planId,
+    status: "pending",
+    value: value || Number(planRow?.price ?? 0),
+    started_at: nowIso,
+    expires_at: expires.toISOString(),
+  };
+
+  const { data: existingSub } = await supabase
     .from("subscriptions")
-    .upsert(
-      {
-        user_id: userId,
-        plan_id: planId,
-        status: "pending",
-        value: value || Number(planRow?.price ?? 0),
-        started_at: nowIso,
-        expires_at: expires.toISOString(),
-      },
-      { onConflict: "user_id" },
-    )
-    .select("status");
+    .select("id")
+    .eq("user_id", userId)
+    .order("expires_at", { ascending: false, nullsFirst: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (existingSub && isRecord(existingSub) && isString(existingSub.id)) {
+    await supabase.from("subscriptions").update(subPayload).eq("id", existingSub.id).select("status");
+  } else {
+    await supabase.from("subscriptions").insert(subPayload).select("status");
+  }
 
   return res.status(200).json({ ok: true, linked: true, paymentId, userId });
 }
-

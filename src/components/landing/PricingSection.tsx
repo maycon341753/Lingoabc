@@ -226,18 +226,26 @@ const PricingSection = () => {
         if (code) setPixCode(code);
         if (paymentId) {
           try {
-            await fetch(buildApiUrl("/api/asaas/link"), {
+            const lr = await fetch(buildApiUrl("/api/asaas/link"), {
               method: "POST",
               headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
               body: JSON.stringify({
                 paymentId,
                 description: selectedPlan?.name ?? "Assinatura",
                 value: amount,
-                dueDate: undefined,
-                invoiceUrl: data?.qrCode?.success ? String(data?.qrCode?.success) : undefined,
                 billingType: "PIX",
               }),
             });
+            if (!lr.ok) {
+              const lj = await lr.json().catch(() => null);
+              const msg =
+                typeof lj?.error === "string"
+                  ? String(lj.error)
+                  : typeof lj?.message === "string"
+                  ? String(lj.message)
+                  : `http_${lr.status}`;
+              setPaymentError(msg);
+            }
           } catch {
             void 0;
           }
