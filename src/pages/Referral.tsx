@@ -307,7 +307,7 @@ const ReferralPage = () => {
             <div className="flex items-center justify-between gap-4 mb-4">
               <div>
                 <h2 className="font-display font-bold text-xl">Saque 💸</h2>
-                <p className="text-sm text-muted-foreground font-bold">Solicite 1 saque a cada 30 dias. O admin aprova e paga manualmente.</p>
+                <p className="text-sm text-muted-foreground font-bold">Solicite 1 saque a cada 30 dias. Até 3 dias para receber</p>
               </div>
               <div className="text-right">
                 <p className="text-xs text-muted-foreground font-bold">Saldo disponível</p>
