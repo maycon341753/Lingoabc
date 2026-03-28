@@ -11,6 +11,7 @@ import VideosPage from "./admin/VideosPage";
 import ReportsPage from "./admin/ReportsPage";
 import LessonQuestionSetsPage from "./admin/LessonQuestionSetsPage";
 import SeoPage from "./admin/SeoPage";
+import SeoEventsPage from "./admin/SeoEventsPage";
 
 const AdminRoutes = () => (
   <Routes>
@@ -26,6 +27,7 @@ const AdminRoutes = () => (
       <Route path="videos" element={<VideosPage />} />
       <Route path="relatorios" element={<ReportsPage />} />
       <Route path="seo" element={<SeoPage />} />
+      <Route path="seo/eventos" element={<SeoEventsPage />} />
       <Route path="questoes" element={<LessonQuestionSetsPage />} />
       <Route path="*" element={<Navigate to="dashboard" replace />} />
     </Route>

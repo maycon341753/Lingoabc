@@ -38,7 +38,30 @@ const ReferralsPage = () => {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editCode, setEditCode] = useState("");
   const [editPercent, setEditPercent] = useState(20);
-  const { isSuperAdmin } = useAuth();
+  const { isSuperAdmin, user } = useAuth();
+  const [canEditCommission, setCanEditCommission] = useState(false);
+
+  useEffect(() => {
+    let mounted = true;
+    const run = async () => {
+      if (!user?.id) {
+        if (mounted) setCanEditCommission(false);
+        return;
+      }
+      if (isSuperAdmin) {
+        if (mounted) setCanEditCommission(true);
+        return;
+      }
+      const { data } = await supabase.from("profiles").select("role").eq("id", user.id).maybeSingle();
+      const roleRaw = String((data as { role?: string | null } | null)?.role ?? "").toLowerCase().trim();
+      const role = roleRaw.replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+      if (mounted) setCanEditCommission(role === "super_admin" || role === "superadmin" || role.startsWith("super_admin"));
+    };
+    run();
+    return () => {
+      mounted = false;
+    };
+  }, [isSuperAdmin, user?.id]);
 
   const loadRows = async () => {
     setLoading(true);
@@ -108,8 +131,8 @@ const ReferralsPage = () => {
                 inputMode="numeric"
                 value={String(editPercent)}
                 onChange={(e) => setEditPercent(Math.max(0, Math.min(100, Number(e.target.value || "0"))))}
-                disabled={!isSuperAdmin}
-                readOnly={!isSuperAdmin}
+                disabled={!canEditCommission}
+                readOnly={!canEditCommission}
               />
             </div>
           </div>
@@ -122,8 +145,8 @@ const ReferralsPage = () => {
               type="button"
               onClick={async () => {
                 const base = { code: editCode || "" };
-                const payload = isSuperAdmin ? { ...base, commission_percent: Number(editPercent || 0) } : base;
-                const insertPayload = isSuperAdmin ? payload : { ...base, commission_percent: 20 };
+                const payload = canEditCommission ? { ...base, commission_percent: Number(editPercent || 0) } : base;
+                const insertPayload = canEditCommission ? payload : { ...base, commission_percent: 20 };
                 const resp = editingId
                   ? await supabase.from("referral_links").update(payload).eq("id", editingId)
                   : await supabase.from("referral_links").insert(insertPayload);

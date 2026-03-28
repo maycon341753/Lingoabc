@@ -54,7 +54,9 @@ const LoginPage = () => {
         .maybeSingle()
         .then(({ data: profile }) => {
           if (!mounted) return;
-          setLoggedUserIsAdmin(profile?.role === "admin" || profile?.role === "super_admin");
+          const roleRaw = String(profile?.role ?? "").toLowerCase().trim();
+          const role = roleRaw.replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+          setLoggedUserIsAdmin(role === "admin" || role.startsWith("super_admin") || role === "superadmin");
         });
     });
 
@@ -70,7 +72,9 @@ const LoginPage = () => {
           .maybeSingle()
           .then(({ data: profile }) => {
             if (!mounted) return;
-            setLoggedUserIsAdmin(profile?.role === "admin" || profile?.role === "super_admin");
+            const roleRaw = String(profile?.role ?? "").toLowerCase().trim();
+            const role = roleRaw.replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+            setLoggedUserIsAdmin(role === "admin" || role.startsWith("super_admin") || role === "superadmin");
           });
       }
     });

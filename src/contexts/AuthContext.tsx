@@ -120,8 +120,21 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
       if (mounted) {
         if (data?.name) setUserLabel(data.name);
-        setIsAdmin(data?.role === "admin" || data?.role === "super_admin");
-        setIsSuperAdmin(data?.role === "super_admin");
+        const roleRaw = String(data?.role ?? "").toLowerCase().trim();
+        let role = roleRaw.replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+        if (role === "superadmin") role = "super_admin";
+        if (role.startsWith("super_admin")) role = "super_admin";
+
+        const email = String(sessionUser.email ?? "").toLowerCase().trim();
+        const superAdminEmails = String(import.meta.env.VITE_SUPER_ADMIN_EMAILS ?? "")
+          .split(/[,;\s]+/g)
+          .map((s) => s.toLowerCase().trim())
+          .filter(Boolean);
+        const isSuperByEmail = !!email && superAdminEmails.includes(email);
+        const isSuper = role === "super_admin" || isSuperByEmail;
+
+        setIsAdmin(role === "admin" || isSuper);
+        setIsSuperAdmin(isSuper);
         setHasSubscription(isActive);
         setLoading(false);
       }
