@@ -311,7 +311,7 @@ const ProfilePage = () => {
                   className="rounded-xl"
                   onClick={async () => {
                     await signOut();
-                    navigate("/login", { replace: true });
+                    navigate("/", { replace: true });
                   }}
                 >
                   Sair

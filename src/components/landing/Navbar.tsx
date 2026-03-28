@@ -78,7 +78,7 @@ const Navbar = () => {
                 className="bg-gradient-hero rounded-xl font-bold"
                 onClick={async () => {
                   await signOut();
-                  navigate("/login", { replace: true });
+                  navigate("/", { replace: true });
                 }}
               >
                 Sair
@@ -192,7 +192,7 @@ const Navbar = () => {
                     className="bg-gradient-hero rounded-xl font-bold"
                     onClick={async () => {
                       await signOut();
-                      navigate("/login", { replace: true });
+                      navigate("/", { replace: true });
                       setOpen(false);
                     }}
                   >
