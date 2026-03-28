@@ -77,6 +77,17 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         setUserLabel(sessionUser.email ?? "Usuário");
       }
 
+      const sessionEmail = String(sessionUser.email ?? "").trim().toLowerCase();
+      if (sessionEmail) {
+        supabase
+          .from("profiles")
+          .update({ email: sessionEmail })
+          .eq("id", sessionUser.id)
+          .is("email", null)
+          .then(() => {})
+          .catch(() => {});
+      }
+
       const { data } = await supabase
         .from("profiles")
         .select("name, role")

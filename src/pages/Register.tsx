@@ -130,7 +130,9 @@ const RegisterPage = () => {
             onSubmit={async (e) => {
               e.preventDefault();
               if (isSubmitting) return;
-              if (!name.trim() || !email.trim() || !cpf.trim() || !password || !confirmPassword) {
+              const emailNorm = String(email ?? "").trim().toLowerCase();
+              const nameNorm = String(name ?? "").trim();
+              if (!nameNorm || !emailNorm || !cpf.trim() || !password || !confirmPassword) {
                 alert("Preencha todos os campos.");
                 return;
               }
@@ -144,10 +146,10 @@ const RegisterPage = () => {
               }
               setIsSubmitting(true);
               const { data, error } = await supabase.auth.signUp({
-                email,
+                email: emailNorm,
                 password,
                 options: {
-                  data: { name, cpf },
+                  data: { name: nameNorm, cpf, email: emailNorm },
                 },
               });
 
@@ -161,8 +163,9 @@ const RegisterPage = () => {
               if (data.user) {
                 const { error: profileError } = await supabase.from("profiles").upsert({
                   id: data.user.id,
-                  name,
+                  name: nameNorm,
                   cpf,
+                  email: emailNorm,
                 });
                 if (profileError) {
                   alert(profileError.message);

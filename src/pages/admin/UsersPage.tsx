@@ -7,6 +7,16 @@ import { Label } from "@/components/ui/label";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/contexts/AuthContext";
 
+const buildApiUrl = (path: string) => {
+  if (typeof window !== "undefined") {
+    const host = window.location.hostname;
+    if (host === "localhost" || host === "127.0.0.1") return path;
+  }
+  const base = String(import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/+$/, "");
+  if (!base) return path;
+  return `${base}${path.startsWith("/") ? "" : "/"}${path}`;
+};
+
 const formatCpf = (value: string) => {
   const digits = value.replace(/\D/g, "").slice(0, 11);
   if (digits.length <= 3) return digits;
@@ -47,6 +57,20 @@ type SubscriptionEditRow = {
   expires_at: string | null;
 };
 
+type SubscriptionCycleRow = {
+  id: string;
+  status: string | null;
+  value: number | null;
+  started_at: string | null;
+  expires_at: string | null;
+  plans: { name: string | null } | null;
+};
+
+type UserEmailsResponse = {
+  ok?: boolean;
+  emails?: Record<string, string>;
+};
+
 const UsersPage = () => {
   const [usersData, setUsersData] = useState<UserRow[]>([]);
   const [userDialogOpen, setUserDialogOpen] = useState(false);
@@ -62,6 +86,35 @@ const UsersPage = () => {
   const [subExpiresAt, setSubExpiresAt] = useState<string | null>(null);
   const [plans, setPlans] = useState<PlanRow[]>([]);
   const { isSuperAdmin } = useAuth();
+  const [detailOpen, setDetailOpen] = useState(false);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [detailError, setDetailError] = useState<string | null>(null);
+  const [detailUser, setDetailUser] = useState<AdminUsersViewRow | null>(null);
+  const [detailCycles, setDetailCycles] = useState<SubscriptionCycleRow[]>([]);
+
+  const fillMissingEmails = async (rows: UserRow[]) => {
+    const ids = rows.filter((r) => !r.email || r.email === "-").map((r) => r.id);
+    if (ids.length === 0) return;
+    let token = (await supabase.auth.getSession()).data.session?.access_token;
+    if (!token) token = (await supabase.auth.refreshSession()).data.session?.access_token;
+    if (!token) return;
+    const r = await fetch(buildApiUrl("/api/admin/user-emails"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ userIds: ids }),
+    });
+    const j = (await r.json().catch(() => null)) as UserEmailsResponse | null;
+    const map = j?.emails ?? null;
+    if (!map) return;
+    setUsersData((prev) =>
+      prev.map((u) => {
+        const email = map[u.id];
+        if (!email) return u;
+        if (u.email && u.email !== "-") return u;
+        return { ...u, email };
+      }),
+    );
+  };
 
   useEffect(() => {
     let mounted = true;
@@ -79,6 +132,7 @@ const UsersPage = () => {
           subscription_status: r.subscription_status ?? null,
         })) ?? [];
       setUsersData(mapped);
+      fillMissingEmails(mapped).then(() => {});
     };
     load();
     return () => {
@@ -100,9 +154,148 @@ const UsersPage = () => {
     };
   }, [isSuperAdmin]);
 
+  const openDetails = async (userId: string) => {
+    setDetailOpen(true);
+    setDetailLoading(true);
+    setDetailError(null);
+    setDetailUser(null);
+    setDetailCycles([]);
+    try {
+      const [userRes, cyclesRes] = await Promise.all([
+        supabase.from("v_admin_users").select("user_id,name,email,cpf,role,plan_name,subscription_status").eq("user_id", userId).maybeSingle(),
+        supabase
+          .from("subscriptions")
+          .select("id,status,value,started_at,expires_at,plans(name)")
+          .eq("user_id", userId)
+          .order("expires_at", { ascending: false, nullsFirst: false })
+          .limit(12),
+      ]);
+      if (userRes.error) throw new Error(userRes.error.message);
+      if (cyclesRes.error) throw new Error(cyclesRes.error.message);
+      const row = (userRes.data ?? null) as AdminUsersViewRow | null;
+      if (row && (!row.email || row.email === "-")) {
+        try {
+          let token = (await supabase.auth.getSession()).data.session?.access_token;
+          if (!token) token = (await supabase.auth.refreshSession()).data.session?.access_token;
+          if (token) {
+            const rr = await fetch(buildApiUrl("/api/admin/user-emails"), {
+              method: "POST",
+              headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+              body: JSON.stringify({ userIds: [userId] }),
+            });
+            const jj = (await rr.json().catch(() => null)) as UserEmailsResponse | null;
+            const email = jj?.emails?.[userId] ?? null;
+            setDetailUser({ ...row, email: email || row.email });
+          } else {
+            setDetailUser(row);
+          }
+        } catch {
+          setDetailUser(row);
+        }
+      } else {
+        setDetailUser(row);
+      }
+      setDetailCycles(((cyclesRes.data ?? []) as SubscriptionCycleRow[]) ?? []);
+      setDetailLoading(false);
+    } catch (e) {
+      setDetailError(e instanceof Error ? e.message : "Falha ao carregar detalhes");
+      setDetailLoading(false);
+    }
+  };
+
   return (
     <div>
       <h1 className="text-2xl font-display font-extrabold mb-6">Usuários ⚙️</h1>
+
+      <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
+        <DialogContent className="sm:max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>Detalhes do usuário</DialogTitle>
+          </DialogHeader>
+          {detailLoading ? (
+            <p className="text-muted-foreground font-bold">Carregando…</p>
+          ) : detailError ? (
+            <p className="text-destructive font-bold">{detailError}</p>
+          ) : (
+            <div className="space-y-6">
+              <div className="bg-muted/30 border border-border rounded-2xl p-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                  <div className="flex items-center justify-between gap-4">
+                    <span className="text-muted-foreground font-bold">Nome</span>
+                    <span className="font-bold text-right">{detailUser?.name ?? "—"}</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-4">
+                    <span className="text-muted-foreground font-bold">E-mail</span>
+                    <span className="font-bold text-right break-all">{detailUser?.email ?? "—"}</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-4">
+                    <span className="text-muted-foreground font-bold">CPF</span>
+                    <span className="font-bold text-right">{detailUser?.cpf ? formatCpf(detailUser.cpf) : "—"}</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-4">
+                    <span className="text-muted-foreground font-bold">Role</span>
+                    <span className="font-bold text-right">{detailUser?.role ?? "—"}</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-4">
+                    <span className="text-muted-foreground font-bold">Plano</span>
+                    <span className="font-bold text-right">{detailUser?.plan_name ?? "—"}</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-4">
+                    <span className="text-muted-foreground font-bold">Status</span>
+                    <span className="font-bold text-right">{detailUser?.subscription_status ?? "—"}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <h3 className="font-display font-extrabold text-lg mb-3">Últimos ciclos de assinatura</h3>
+                {detailCycles.length === 0 ? (
+                  <p className="text-muted-foreground font-bold">Sem ciclos encontrados.</p>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-border bg-muted/50">
+                          <th className="text-left p-4 font-bold text-muted-foreground">Plano</th>
+                          <th className="text-left p-4 font-bold text-muted-foreground">Status</th>
+                          <th className="text-left p-4 font-bold text-muted-foreground">Início</th>
+                          <th className="text-left p-4 font-bold text-muted-foreground">Vencimento</th>
+                          <th className="text-right p-4 font-bold text-muted-foreground">Valor</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {detailCycles.map((c) => {
+                          const st = String(c.status ?? "").toLowerCase().trim();
+                          const active = st === "active" || st === "ativa";
+                          const started = c.started_at ? new Date(c.started_at).toLocaleDateString("pt-BR") : "—";
+                          const expires = c.expires_at ? new Date(c.expires_at).toLocaleDateString("pt-BR") : "—";
+                          const value = Number(c.value ?? 0);
+                          return (
+                            <tr key={c.id} className="border-b border-border last:border-0 hover:bg-muted/30 transition-colors">
+                              <td className="p-4 font-bold">{c.plans?.name ?? "—"}</td>
+                              <td className="p-4">
+                                <StatusBadge active={active} activeLabel="Ativa" inactiveLabel={c.status ?? "—"} />
+                              </td>
+                              <td className="p-4">{started}</td>
+                              <td className="p-4">{expires}</td>
+                              <td className="p-4 text-right">{`R$ ${value.toFixed(2)}`}</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+          <DialogFooter className="sm:justify-end">
+            <Button variant="outline" className="rounded-xl" type="button" onClick={() => setDetailOpen(false)}>
+              Fechar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={userDialogOpen} onOpenChange={setUserDialogOpen}>
         <DialogContent className="sm:max-w-xl">
@@ -289,6 +482,7 @@ const UsersPage = () => {
             </td>
             <td className="p-4">{u.role ?? "user"}</td>
             <ActionButtons
+              onView={() => openDetails(u.id)}
               onEdit={() => {
                 setEditingUserId(u.id);
                 setUserName(u.name);
