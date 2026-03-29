@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo, useEffect } from "react";
+import { useState, useCallback, useMemo, useEffect, useRef } from "react";
 import { motion, AnimatePresence, Reorder } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { CheckCircle, XCircle, ArrowRight, Star, GripVertical } from "lucide-react";
@@ -887,6 +887,38 @@ const LessonPage = () => {
   const progress = ((current + (answered ? 1 : 0)) / questions.length) * 100;
 
   const [lastCorrect, setLastCorrect] = useState(false);
+  const audioCtxRef = useRef<AudioContext | null>(null);
+
+  const playCorrectSound = useCallback(() => {
+    try {
+      const Ctx = (window.AudioContext || (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext) as typeof AudioContext | undefined;
+      if (!Ctx) return;
+      const ctx = audioCtxRef.current ?? new Ctx();
+      audioCtxRef.current = ctx;
+      if (ctx.state === "suspended") ctx.resume().catch(() => void 0);
+      const t = ctx.currentTime;
+
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(523.25, t);
+      osc.frequency.setValueAtTime(659.25, t + 0.08);
+      osc.frequency.setValueAtTime(783.99, t + 0.16);
+
+      gain.gain.setValueAtTime(0.0001, t);
+      gain.gain.exponentialRampToValueAtTime(0.18, t + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.32);
+
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+
+      osc.start(t);
+      osc.stop(t + 0.34);
+    } catch {
+      void 0;
+    }
+  }, []);
 
   const initQuestion = useCallback((idx: number) => {
     const question = questions[idx];
@@ -902,6 +934,7 @@ const LessonPage = () => {
   }, [questions]);
 
   const markCorrect = () => {
+    playCorrectSound();
     setScore((s) => s + 20);
     setLastCorrect(true);
     confetti();
