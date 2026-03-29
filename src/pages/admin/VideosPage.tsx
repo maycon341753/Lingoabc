@@ -464,41 +464,66 @@ const VideosPage = () => {
                     upsert: false,
                   });
                   if (up.error) {
-                    setEditError(up.error.message || "Falha no upload da capa.");
+                    const msg = String(up.error.message ?? "");
+                    const lower = msg.toLowerCase();
+                    if (lower.includes("54001") || lower.includes("stack depth")) {
+                      setEditError(
+                        "Upload da capa: erro no banco (stack depth). Ajuste as policies do Storage (storage.objects) para permitir INSERT no bucket e evitar recursão em RLS.",
+                      );
+                    } else if (lower.includes("row-level security") || lower.includes("rls") || lower.includes("permission") || lower.includes("not authorized")) {
+                      setEditError("Upload da capa: permissão negada. Ajuste as policies do Storage (storage.objects) para o bucket.");
+                    } else {
+                      setEditError(`Upload da capa: ${msg || "falha no upload"}`);
+                    }
                     setEditSaving(false);
                     return;
                   }
                   nextThumb = objectName;
                 }
-                const upd = await supabase
-                  .from("videos_media")
-                  .update({
-                    title: editTitle.trim(),
-                    description: editDescription || null,
-                    subject: editSubject || null,
-                    module: editModuleName || null,
-                    is_music: editIsMusic,
-                    active: editActive,
-                    thumb_name: editIsMusic ? (nextThumb ?? null) : null,
-                  })
-                  .eq("id", editingId);
-                if (upd.error) {
-                  setEditError(upd.error.message);
-                  setEditSaving(false);
-                  return;
+                const payload = {
+                  title: editTitle.trim(),
+                  description: editDescription || null,
+                  subject: editSubject || null,
+                  module: editModuleName || null,
+                  is_music: editIsMusic,
+                  active: editActive,
+                  thumb_name: editIsMusic ? (nextThumb ?? null) : null,
+                };
+
+                const rpc = await supabase.rpc("admin_update_videos_media", {
+                  p_id: editingId,
+                  p_title: payload.title,
+                  p_description: payload.description,
+                  p_subject: payload.subject,
+                  p_module: payload.module,
+                  p_is_music: payload.is_music,
+                  p_active: payload.active,
+                  p_thumb_name: payload.thumb_name,
+                });
+
+                if (rpc.error) {
+                  const msg = String(rpc.error.message ?? "");
+                  const lower = msg.toLowerCase();
+                  const missingRpc = lower.includes("could not find the function") || lower.includes("pgrst202");
+                  if (!missingRpc) {
+                    setEditError(`Salvar dados: ${msg}`);
+                    setEditSaving(false);
+                    return;
+                  }
+
+                  const upd = await supabase.from("videos_media").update(payload).eq("id", editingId);
+                  if (upd.error) {
+                    setEditError(`Salvar dados: ${upd.error.message}`);
+                    setEditSaving(false);
+                    return;
+                  }
                 }
                 setRows((prev) =>
                   prev.map((r) =>
                     r.id === editingId
                       ? {
                           ...r,
-                          title: editTitle.trim(),
-                          description: editDescription || null,
-                          subject: editSubject || null,
-                          module: editModuleName || null,
-                          is_music: editIsMusic,
-                          active: editActive,
-                          thumb_name: editIsMusic ? (nextThumb ?? null) : null,
+                          ...payload,
                         }
                       : r,
                   ),
