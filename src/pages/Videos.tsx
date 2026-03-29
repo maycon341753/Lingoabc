@@ -4,6 +4,8 @@ import Footer from "@/components/landing/Footer";
 import { supabase } from "@/lib/supabase";
 import mascot from "@/assets/mascot-owl.png";
 import { useSeo } from "@/lib/useSeo";
+import { Button } from "@/components/ui/button";
+import { useNavigate } from "react-router-dom";
 
 type MediaRow = {
   id: string;
@@ -19,6 +21,7 @@ type MediaRow = {
 };
 
 const VideosPage = () => {
+  const navigate = useNavigate();
   const origin = typeof window !== "undefined" ? window.location.origin : "";
   const canonical = origin ? `${origin}/videos` : "/videos";
   useSeo({
@@ -32,11 +35,42 @@ const VideosPage = () => {
   });
   const [items, setItems] = useState<MediaRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [hasActivePlan, setHasActivePlan] = useState<boolean | null>(null);
   const ordered = useMemo(() => {
     const vids = items.filter((i) => !i.is_music);
     const mus = items.filter((i) => i.is_music);
     return [...vids, ...mus];
   }, [items]);
+
+  useEffect(() => {
+    let mounted = true;
+    const run = async () => {
+      const { data: auth } = await supabase.auth.getUser();
+      const uid = auth.user?.id ?? null;
+      if (!uid) {
+        if (mounted) setHasActivePlan(false);
+        return;
+      }
+      const { data } = await supabase
+        .from("subscriptions")
+        .select("status,expires_at")
+        .eq("user_id", uid)
+        .order("expires_at", { ascending: false, nullsFirst: false })
+        .limit(1)
+        .maybeSingle();
+      const status = String((data as { status?: string | null } | null)?.status ?? "").toLowerCase().trim();
+      const expiresAtIso = String((data as { expires_at?: string | null } | null)?.expires_at ?? "");
+      const t = expiresAtIso ? new Date(expiresAtIso).getTime() : NaN;
+      const expiresAtMs = Number.isFinite(t) ? t : null;
+      const nowMs = Date.now();
+      const active = (status === "active" || status === "ativa" || status === "ativo") && (expiresAtMs == null || expiresAtMs > nowMs);
+      if (mounted) setHasActivePlan(active);
+    };
+    run();
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   useEffect(() => {
     let mounted = true;
@@ -88,6 +122,17 @@ const VideosPage = () => {
                 </div>
               );
             })}
+          </div>
+        )}
+
+        {hasActivePlan === false && (
+          <div className="mt-10 flex justify-center">
+            <Button
+              className="bg-gradient-hero rounded-2xl font-extrabold text-base md:text-lg px-8 py-7 shadow-card motion-safe:animate-pulse motion-reduce:animate-none"
+              onClick={() => navigate("/usuario/planos")}
+            >
+              Mais de 100 musicas, DESBLOQUEIE
+            </Button>
           </div>
         )}
       </div>
