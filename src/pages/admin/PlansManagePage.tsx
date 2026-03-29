@@ -24,6 +24,10 @@ type PlanSelectRow = {
   price: number | null;
 };
 
+type PlanUpsertRpcResponse = {
+  id: string;
+};
+
 const formatBrlFromDigits = (digitsOnly: string) => {
   const digits = String(digitsOnly || "").replace(/\D/g, "");
   if (!digits) return "";
@@ -169,14 +173,37 @@ const PlansManagePage = () => {
                   billing_cycle: planCycle || null,
                   price: Number(priceNum || 0),
                 };
-                const resp = editingId
-                  ? await supabase.from("plans").update(payload).eq("id", editingId)
-                  : await supabase.from("plans").insert(payload);
-                setSaving(false);
-                if (resp.error) {
-                  alert(resp.error.message);
-                  return;
-                }
+                  const rpc = await supabase.rpc("admin_upsert_plan", {
+                    p_id: editingId,
+                    p_code: payload.code,
+                    p_name: payload.name,
+                    p_period_months: payload.period_months,
+                    p_billing_cycle: payload.billing_cycle,
+                    p_price: payload.price,
+                  });
+                  if (rpc.error) {
+                    const msg = String(rpc.error.message ?? "");
+                    const lower = msg.toLowerCase();
+                    const missingRpc = lower.includes("could not find the function") || lower.includes("pgrst202");
+                    if (!missingRpc) {
+                      setSaving(false);
+                      alert(msg);
+                      return;
+                    }
+                    const resp = editingId
+                      ? await supabase.from("plans").update(payload).eq("id", editingId)
+                      : await supabase.from("plans").insert(payload);
+                    setSaving(false);
+                    if (resp.error) {
+                      alert(resp.error.message);
+                      return;
+                    }
+                  } else {
+                    const out = (Array.isArray(rpc.data) ? rpc.data[0] : null) as PlanUpsertRpcResponse | null;
+                    const id = String(out?.id ?? editingId ?? "");
+                    if (!editingId && id) setEditingId(id);
+                    setSaving(false);
+                  }
                 setEditOpen(false);
                 loadRows().then(() => {});
               }}
@@ -211,10 +238,20 @@ const PlansManagePage = () => {
                   setEditOpen(true);
                 }}
                 onDelete={async () => {
-                  const del = await supabase.from("plans").delete().eq("id", p.id);
-                  if (del.error) {
-                    alert(del.error.message);
-                    return;
+                  const rpc = await supabase.rpc("admin_delete_plan", { p_id: p.id });
+                  if (rpc.error) {
+                    const msg = String(rpc.error.message ?? "");
+                    const lower = msg.toLowerCase();
+                    const missingRpc = lower.includes("could not find the function") || lower.includes("pgrst202");
+                    if (!missingRpc) {
+                      alert(msg);
+                      return;
+                    }
+                    const del = await supabase.from("plans").delete().eq("id", p.id);
+                    if (del.error) {
+                      alert(del.error.message);
+                      return;
+                    }
                   }
                   setRows((prev) => prev.filter((x) => x.id !== p.id));
                 }}
