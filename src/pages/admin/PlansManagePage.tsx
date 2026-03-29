@@ -60,6 +60,10 @@ const PlansManagePage = () => {
   const [planCycle, setPlanCycle] = useState("");
   const [planPrice, setPlanPrice] = useState("");
   const [saving, setSaving] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deletingPlan, setDeletingPlan] = useState<PlanRow | null>(null);
+  const [deleteSaving, setDeleteSaving] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const loadRows = async () => {
     setLoading(true);
@@ -214,6 +218,83 @@ const PlansManagePage = () => {
         </DialogContent>
       </Dialog>
 
+      <Dialog
+        open={deleteOpen}
+        onOpenChange={(open) => {
+          setDeleteOpen(open);
+          if (!open) {
+            setDeletingPlan(null);
+            setDeleteSaving(false);
+            setDeleteError(null);
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Excluir plano</DialogTitle>
+          </DialogHeader>
+          {deleteError ? <p className="text-sm font-bold text-destructive">{deleteError}</p> : null}
+          <p className="text-sm text-muted-foreground">
+            Tem certeza que deseja excluir o plano <span className="font-bold">{deletingPlan?.name ?? "—"}</span>? Esta ação não pode ser desfeita.
+          </p>
+          <DialogFooter className="sm:justify-end">
+            <Button variant="outline" className="rounded-xl" type="button" onClick={() => setDeleteOpen(false)} disabled={deleteSaving}>
+              Cancelar
+            </Button>
+            <Button
+              className="bg-gradient-hero rounded-xl font-bold"
+              type="button"
+              disabled={deleteSaving || !deletingPlan?.id}
+              onClick={async () => {
+                if (!deletingPlan?.id) return;
+                setDeleteSaving(true);
+                setDeleteError(null);
+                const rpc = await supabase.rpc("admin_delete_plan", { p_id: deletingPlan.id });
+                if (rpc.error) {
+                  const msg = String(rpc.error.message ?? "");
+                  const lower = msg.toLowerCase();
+                  const missingRpc = lower.includes("could not find the function") || lower.includes("pgrst202");
+                  if (!missingRpc) {
+                    setDeleteSaving(false);
+                    if (lower.includes("23503") || lower.includes("foreign key")) {
+                      setDeleteError("Não foi possível excluir: existem assinaturas vinculadas a este plano. Remova/alterne as assinaturas antes de excluir.");
+                      return;
+                    }
+                    if (lower.includes("54001") || lower.includes("stack depth")) {
+                      setDeleteError("Erro no banco (stack depth). Crie a função admin_delete_plan no Supabase para excluir sem recursão em RLS.");
+                      return;
+                    }
+                    setDeleteError(msg || "Falha ao excluir.");
+                    return;
+                  }
+                  const del = await supabase.from("plans").delete().eq("id", deletingPlan.id);
+                  if (del.error) {
+                    const dmsg = String(del.error.message ?? "");
+                    const dlower = dmsg.toLowerCase();
+                    setDeleteSaving(false);
+                    if (dlower.includes("23503") || dlower.includes("foreign key")) {
+                      setDeleteError("Não foi possível excluir: existem assinaturas vinculadas a este plano. Remova/alterne as assinaturas antes de excluir.");
+                      return;
+                    }
+                    if (dlower.includes("54001") || dlower.includes("stack depth")) {
+                      setDeleteError("Erro no banco (stack depth). É necessário ajustar RLS/policies ou usar RPC admin_delete_plan.");
+                      return;
+                    }
+                    setDeleteError(dmsg || "Falha ao excluir.");
+                    return;
+                  }
+                }
+                setRows((prev) => prev.filter((x) => x.id !== deletingPlan.id));
+                setDeleteSaving(false);
+                setDeleteOpen(false);
+              }}
+            >
+              Excluir
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {loading ? (
         <p className="text-muted-foreground font-bold">Carregando…</p>
       ) : (
@@ -237,23 +318,11 @@ const PlansManagePage = () => {
                   setPlanPrice(formatBrlFromNumber(p.price));
                   setEditOpen(true);
                 }}
-                onDelete={async () => {
-                  const rpc = await supabase.rpc("admin_delete_plan", { p_id: p.id });
-                  if (rpc.error) {
-                    const msg = String(rpc.error.message ?? "");
-                    const lower = msg.toLowerCase();
-                    const missingRpc = lower.includes("could not find the function") || lower.includes("pgrst202");
-                    if (!missingRpc) {
-                      alert(msg);
-                      return;
-                    }
-                    const del = await supabase.from("plans").delete().eq("id", p.id);
-                    if (del.error) {
-                      alert(del.error.message);
-                      return;
-                    }
-                  }
-                  setRows((prev) => prev.filter((x) => x.id !== p.id));
+                onDelete={() => {
+                  setDeletingPlan(p);
+                  setDeleteError(null);
+                  setDeleteSaving(false);
+                  setDeleteOpen(true);
                 }}
               />
             </tr>
