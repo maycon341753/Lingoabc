@@ -105,7 +105,20 @@ const VideosPage = () => {
                 <div key={it.id} className="bg-card rounded-2xl shadow-card overflow-hidden">
                   <div className="aspect-video bg-muted">
                     {it.is_music ? (
-                      <audio controls src={url} className="w-full h-12" />
+                      it.thumb_name ? (
+                        <div className="w-full h-full relative">
+                          <img
+                            alt={it.title}
+                            className="w-full h-full object-cover"
+                            src={supabase.storage.from(it.bucket).getPublicUrl(it.thumb_name).data.publicUrl}
+                          />
+                          <div className="absolute left-0 right-0 bottom-0 p-3 bg-black/40">
+                            <audio controls src={url} className="w-full h-10" />
+                          </div>
+                        </div>
+                      ) : (
+                        <audio controls src={url} className="w-full h-12" />
+                      )
                     ) : (
                       <video controls src={url} className="w-full h-full" />
                     )}

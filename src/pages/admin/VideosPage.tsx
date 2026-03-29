@@ -17,6 +17,7 @@ type VideoMediaRow = {
   active: boolean;
   bucket: string;
   object_name: string;
+  thumb_name?: string | null;
 };
 
 const VideosPage = () => {
@@ -42,6 +43,9 @@ const VideosPage = () => {
   const [editModuleName, setEditModuleName] = useState("");
   const [editIsMusic, setEditIsMusic] = useState(false);
   const [editActive, setEditActive] = useState(true);
+  const [editBucket, setEditBucket] = useState<string | null>(null);
+  const [editThumbName, setEditThumbName] = useState<string | null>(null);
+  const [editThumbFile, setEditThumbFile] = useState<File | null>(null);
   const [rows, setRows] = useState<VideoMediaRow[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -49,7 +53,7 @@ const VideosPage = () => {
     setLoading(true);
     const { data, error } = await supabase
       .from("videos_media")
-      .select("id,title,description,subject,module,is_music,active,bucket,object_name,created_at")
+      .select("id,title,description,subject,module,is_music,active,bucket,object_name,thumb_name,created_at")
       .order("created_at", { ascending: false });
     if (error) {
       alert(error.message);
@@ -296,6 +300,9 @@ const VideosPage = () => {
                   setEditModuleName(v.module ?? "");
                   setEditIsMusic(Boolean(v.is_music));
                   setEditActive(Boolean(v.active));
+                  setEditBucket(v.bucket ?? null);
+                  setEditThumbName((v.thumb_name ?? null) as string | null);
+                  setEditThumbFile(null);
                   setEditOpen(true);
                 }}
                 onDelete={async () => {
@@ -320,6 +327,9 @@ const VideosPage = () => {
             setEditError(null);
             setEditSaving(false);
             setEditingId(null);
+            setEditBucket(null);
+            setEditThumbName(null);
+            setEditThumbFile(null);
           }
         }}
       >
@@ -388,6 +398,30 @@ const VideosPage = () => {
                 </label>
               </div>
             </div>
+            {editIsMusic && (
+              <div className="grid gap-2">
+                <Label htmlFor="editThumb">Foto de capa (música)</Label>
+                {editBucket && editThumbName ? (
+                  <div className="overflow-hidden rounded-2xl border border-border bg-muted">
+                    <img
+                      alt={editTitle || "Capa"}
+                      className="w-full h-40 object-cover"
+                      src={supabase.storage.from(editBucket).getPublicUrl(editThumbName).data.publicUrl}
+                    />
+                  </div>
+                ) : null}
+                <input
+                  id="editThumb"
+                  type="file"
+                  accept="image/*"
+                  className="flex h-10 w-full rounded-xl border border-input bg-background px-3 py-2 text-sm"
+                  onChange={(e) => {
+                    setEditError(null);
+                    setEditThumbFile(e.target.files?.[0] ?? null);
+                  }}
+                />
+              </div>
+            )}
           </div>
           <DialogFooter className="sm:justify-end">
             <Button variant="outline" className="rounded-xl" type="button" onClick={() => setEditOpen(false)} disabled={editSaving}>
@@ -412,6 +446,30 @@ const VideosPage = () => {
                   return;
                 }
                 setEditSaving(true);
+                let nextThumb: string | null | undefined = editThumbName;
+                if (editThumbFile && editBucket) {
+                  const maxBytes = 3 * 1024 * 1024;
+                  if (editThumbFile.size > maxBytes) {
+                    setEditError("Imagem muito grande. Envie uma imagem menor (até 3 MB).");
+                    setEditSaving(false);
+                    return;
+                  }
+                  const safeName = editThumbFile.name.replace(/\s+/g, "_").replace(/[^\w.\-()]+/g, "_");
+                  const uuid =
+                    typeof globalThis !== "undefined" && globalThis.crypto?.randomUUID ? globalThis.crypto.randomUUID() : String(Date.now());
+                  const objectName = `thumbs/${uuid}-${safeName}`;
+                  const up = await supabase.storage.from(editBucket).upload(objectName, editThumbFile, {
+                    cacheControl: "3600",
+                    contentType: editThumbFile.type || undefined,
+                    upsert: false,
+                  });
+                  if (up.error) {
+                    setEditError(up.error.message || "Falha no upload da capa.");
+                    setEditSaving(false);
+                    return;
+                  }
+                  nextThumb = objectName;
+                }
                 const upd = await supabase
                   .from("videos_media")
                   .update({
@@ -421,6 +479,7 @@ const VideosPage = () => {
                     module: editModuleName || null,
                     is_music: editIsMusic,
                     active: editActive,
+                    thumb_name: editIsMusic ? (nextThumb ?? null) : null,
                   })
                   .eq("id", editingId);
                 if (upd.error) {
@@ -439,6 +498,7 @@ const VideosPage = () => {
                           module: editModuleName || null,
                           is_music: editIsMusic,
                           active: editActive,
+                          thumb_name: editIsMusic ? (nextThumb ?? null) : null,
                         }
                       : r,
                   ),
