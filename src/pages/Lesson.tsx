@@ -928,11 +928,12 @@ const LessonPage = () => {
 
   useEffect(() => {
     try {
-      const completedKey = `progressCompleted:${materia}:${modulo}`;
+      const uid = user?.id ?? "anon";
+      const completedKey = `progressCompleted:${uid}:${materia}:${modulo}`;
       const raw = window.localStorage.getItem(completedKey);
       const arr = raw ? (JSON.parse(raw) as number[]) : [];
       if (!Array.isArray(arr) || !arr.includes(lessonId)) return;
-      const lessonKey = `pointsLesson:${materia}:${modulo}:${lessonId}`;
+      const lessonKey = `pointsLesson:${uid}:${materia}:${modulo}:${lessonId}`;
       const savedScore = Number(window.localStorage.getItem(lessonKey) || "0");
       setScore(savedScore);
       setCurrent(Math.max(0, questions.length - 1));
@@ -941,12 +942,13 @@ const LessonPage = () => {
     } catch {
       return;
     }
-  }, [lessonId, materia, modulo, questions.length]);
+  }, [lessonId, materia, modulo, questions.length, user?.id]);
 
   useEffect(() => {
     if (!finished) return;
     try {
-      const perfectKey = `progressPerfect:${materia}:${modulo}`;
+      const uid = user?.id ?? "anon";
+      const perfectKey = `progressPerfect:${uid}:${materia}:${modulo}`;
       const raw = window.localStorage.getItem(perfectKey);
       const arr = raw ? (JSON.parse(raw) as number[]) : [];
       const allPoints = questions.length * 20;
@@ -957,12 +959,13 @@ const LessonPage = () => {
     } catch {
       return;
     }
-  }, [finished, materia, modulo, lessonId, questions.length, score]);
+  }, [finished, materia, modulo, lessonId, questions.length, score, user?.id]);
 
   useEffect(() => {
     if (!finished) return;
     const run = async () => {
       if (!user?.id) return;
+      const uid = user.id;
       const countRow = await supabase
         .from("user_module_progress")
         .select("id,completed_lessons")
@@ -985,27 +988,20 @@ const LessonPage = () => {
           },
           { onConflict: "user_id,subject,module" },
         );
+      const lessonKey = `pointsLesson:${uid}:${materia}:${modulo}:${lessonId}`;
+      const prevLesson = Number(window.localStorage.getItem(lessonKey) || "0");
+      const nextLesson = Math.max(prevLesson, Number(score || 0));
       const payload = {
         user_id: user.id,
         subject: materia,
         module: modulo,
         lesson_id: lessonId,
         status: "completed",
-        score,
+        score: nextLesson,
       };
-      const { data: existing } = await supabase
-        .from("user_activity_progress")
-        .select("id,score")
-        .eq("user_id", user.id)
-        .eq("subject", materia)
-        .eq("module", modulo)
-        .eq("lesson_id", lessonId)
-        .limit(1);
-      const row = (existing ?? [])[0] as { id: number; score: number } | undefined;
-      if (!row) {
+      const up = await supabase.from("user_activity_progress").upsert(payload, { onConflict: "user_id,subject,module,lesson_id" });
+      if (up.error) {
         await supabase.from("user_activity_progress").insert(payload);
-      } else if (Number(row.score ?? 0) < Number(score)) {
-        await supabase.from("user_activity_progress").update({ score }).eq("id", row.id);
       }
     };
     run();
@@ -1013,19 +1009,21 @@ const LessonPage = () => {
 
   useEffect(() => {
     if (!finished) return;
-    const key = "pointsTotal";
-    const lessonKey = `pointsLesson:${materia}:${modulo}:${lessonId}`;
+    const uid = user?.id ?? "anon";
+    const key = `pointsTotal:${uid}`;
+    const lessonKey = `pointsLesson:${uid}:${materia}:${modulo}:${lessonId}`;
     const prevLesson = Number(window.localStorage.getItem(lessonKey) || "0");
     const nextLesson = Math.max(prevLesson, Number(score || 0));
     window.localStorage.setItem(lessonKey, String(nextLesson));
     const curTotal = Number(window.localStorage.getItem(key) || "0");
     const delta = nextLesson - prevLesson;
     if (delta > 0) window.localStorage.setItem(key, String(curTotal + delta));
-  }, [finished, materia, modulo, lessonId, score]);
+  }, [finished, materia, modulo, lessonId, score, user?.id]);
 
   useEffect(() => {
     if (!finished) return;
-    const completedKey = `progressCompleted:${materia}:${modulo}`;
+    const uid = user?.id ?? "anon";
+    const completedKey = `progressCompleted:${uid}:${materia}:${modulo}`;
     const raw = window.localStorage.getItem(completedKey);
     let arr = raw ? (JSON.parse(raw) as number[]) : [];
     if (!Array.isArray(arr)) arr = [];
@@ -1033,7 +1031,7 @@ const LessonPage = () => {
       arr.push(lessonId);
     }
     window.localStorage.setItem(completedKey, JSON.stringify(arr));
-  }, [finished, materia, modulo, lessonId]);
+  }, [finished, materia, modulo, lessonId, user?.id]);
 
   if (finished) {
     const modulesOrder = ["Descoberta", "Construção", "Desenvolvimento", "Domínio"];

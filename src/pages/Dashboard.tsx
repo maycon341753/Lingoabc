@@ -98,9 +98,29 @@ const DashboardPage = () => {
 
       const rows = Array.isArray(progressRows) ? progressRows : [];
       const completed = rows.filter((r: { status: string | null }) => (r.status ?? "").toLowerCase() === "completed");
-      setCompletedActivities(completed.length);
-      const pts = completed.reduce((sum: number, r: { score: number | null }) => sum + Number(r.score ?? 0), 0);
-      setPoints(pts);
+      if (completed.length > 0) {
+        setCompletedActivities(completed.length);
+        const pts = completed.reduce((sum: number, r: { score: number | null }) => sum + Number(r.score ?? 0), 0);
+        setPoints(pts);
+      } else {
+        let pts = 0;
+        let count = 0;
+        try {
+          const prefix = `pointsLesson:${uid}:`;
+          for (let i = 0; i < window.localStorage.length; i += 1) {
+            const k = window.localStorage.key(i);
+            if (!k || !k.startsWith(prefix)) continue;
+            const v = Number(window.localStorage.getItem(k) || "0");
+            if (v > 0) count += 1;
+            pts += v;
+          }
+        } catch {
+          pts = 0;
+          count = 0;
+        }
+        setCompletedActivities(count);
+        setPoints(pts);
+      }
       const days = Array.from(new Set(completed.map((r: { created_at: string }) => new Date(r.created_at).toDateString())))
         .map((d) => new Date(d).getTime())
         .sort((a, b) => b - a);

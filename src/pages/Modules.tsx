@@ -253,7 +253,8 @@ const ModulesPage = () => {
 
   useEffect(() => {
     const moduleName = modules[selectedModule]?.name ?? "Descoberta";
-    const key = `progressPerfect:${selectedSubject}:${moduleName}`;
+    const uid = user?.id ?? "anon";
+    const key = `progressPerfect:${uid}:${selectedSubject}:${moduleName}`;
     try {
       const raw = window.localStorage.getItem(key);
       const arr = raw ? (JSON.parse(raw) as number[]) : [];
@@ -261,11 +262,12 @@ const ModulesPage = () => {
     } catch {
       setPerfectIds([]);
     }
-  }, [selectedModule, selectedSubject]);
+  }, [selectedModule, selectedSubject, user?.id]);
 
   useEffect(() => {
     const moduleName = modules[selectedModule]?.name ?? "Descoberta";
-    const key = `progressCompleted:${selectedSubject}:${moduleName}`;
+    const uid = user?.id ?? "anon";
+    const key = `progressCompleted:${uid}:${selectedSubject}:${moduleName}`;
     try {
       const raw = window.localStorage.getItem(key);
       const arr = raw ? (JSON.parse(raw) as number[]) : [];
@@ -273,7 +275,7 @@ const ModulesPage = () => {
     } catch {
       setCompletedIds([]);
     }
-  }, [selectedModule, selectedSubject]);
+  }, [selectedModule, selectedSubject, user?.id]);
 
   useEffect(() => {
     try {
