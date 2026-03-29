@@ -175,12 +175,17 @@ const ReferralsPage = () => {
               className="bg-gradient-hero rounded-xl font-bold"
               type="button"
               onClick={async () => {
-                const base = { code: editCode || "" };
+                const code = String(editCode ?? "").trim();
+                if (!code || code === "-") {
+                  alert("Informe um código válido.");
+                  return;
+                }
+                const base = { code };
                 const payload = canEditCommission ? { ...base, commission_percent: Number(editPercent || 0) } : base;
                 const insertPayload = canEditCommission ? payload : { ...base, commission_percent: 20 };
                 const resp = editingId
-                  ? await supabase.from("referral_links").update(payload).eq("id", editingId)
-                  : await supabase.from("referral_links").insert(insertPayload);
+                  ? await supabase.from("referral_links").update(payload).eq("id", editingId).select("id")
+                  : await supabase.from("referral_links").insert(insertPayload).select("id");
                 if (resp.error) {
                   alert(resp.error.message);
                   return;
@@ -214,7 +219,7 @@ const ReferralsPage = () => {
               <ActionButtons
                 onEdit={() => {
                   setEditingId(r.id);
-                  setEditCode(r.code);
+                  setEditCode(r.code === "-" ? "" : r.code);
                   setEditPercent(r.commission_percent);
                   setEditOpen(true);
                 }}
