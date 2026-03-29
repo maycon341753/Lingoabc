@@ -9,8 +9,7 @@ type SubscriptionSelectRow = {
   status: string | null;
   value: number | null;
   expires_at: string | null;
-  user_id?: string | null;
-  profiles: { name: string | null; email?: string | null; cpf?: string | null } | null;
+  user_id: string | null;
   plans: { name: string | null } | null;
 };
 
@@ -33,15 +32,12 @@ type SubscriptionCycleRow = {
   plans: { name: string | null } | null;
 };
 
-type UserDetailRow = {
-  id: string;
+type AdminUserRow = {
+  user_id: string;
   name: string | null;
+  email: string | null;
   cpf: string | null;
   role: string | null;
-};
-
-type AuthUserRow = {
-  email: string | null;
 };
 
 const SubscriptionsPage = () => {
@@ -57,7 +53,7 @@ const SubscriptionsPage = () => {
     setLoading(true);
     const { data, error } = await supabase
       .from("subscriptions")
-      .select("id,user_id,status,value,expires_at,profiles(name),plans(name)")
+      .select("id,user_id,status,value,expires_at,plans(name)")
       .order("expires_at", { ascending: false });
     if (error) {
       alert(error.message);
@@ -65,16 +61,41 @@ const SubscriptionsPage = () => {
       setLoading(false);
       return;
     }
-    const mapped =
-      ((data ?? []) as SubscriptionSelectRow[]).map((s) => ({
-        id: s.id,
-        user_id: String(s.user_id ?? ""),
-        user: s.profiles?.name ?? "-",
-        plan: s.plans?.name ?? "-",
-        value: Number(s.value ?? 0),
-        status: s.status ?? "-",
-        expires: s.expires_at ? new Date(s.expires_at).toLocaleDateString() : "—",
-      })) ?? [];
+    const nowMs = Date.now();
+    const src = ((data ?? []) as SubscriptionSelectRow[]) ?? [];
+    const activeOnly = src.filter((s) => {
+      const st = String(s.status ?? "").toLowerCase().trim();
+      const okStatus = st === "active" || st === "ativa" || st === "ativo" || st === "paid" || st === "confirmed" || st === "received";
+      if (!okStatus) return false;
+      const expIso = String(s.expires_at ?? "");
+      if (!expIso) return true;
+      const t = new Date(expIso).getTime();
+      if (!Number.isFinite(t)) return true;
+      return t > nowMs;
+    });
+
+    const userIds = Array.from(new Set(activeOnly.map((s) => String(s.user_id ?? "")).filter(Boolean)));
+    let userMap: Record<string, string> = {};
+    if (userIds.length > 0) {
+      const { data: usersData } = await supabase.from("v_admin_users").select("user_id,name").in("user_id", userIds);
+      userMap =
+        (Array.isArray(usersData) ? usersData : []).reduce<Record<string, string>>((acc, r) => {
+          const row = r as { user_id?: string | null; name?: string | null };
+          const id = String(row.user_id ?? "");
+          if (id) acc[id] = String(row.name ?? "");
+          return acc;
+        }, {});
+    }
+
+    const mapped = activeOnly.map((s) => ({
+      id: s.id,
+      user_id: String(s.user_id ?? ""),
+      user: userMap[String(s.user_id ?? "")] || "-",
+      plan: s.plans?.name ?? "-",
+      value: Number(s.value ?? 0),
+      status: s.status ?? "-",
+      expires: s.expires_at ? new Date(s.expires_at).toLocaleDateString("pt-BR") : "—",
+    }));
     setRows(mapped);
     setLoading(false);
   };
@@ -87,29 +108,26 @@ const SubscriptionsPage = () => {
     setDetailUser(null);
     setDetailCycles([]);
     try {
-      const [profileRes, cyclesRes, authRes] = await Promise.all([
-        supabase.from("profiles").select("id,name,cpf,role").eq("id", userId).maybeSingle(),
+      const [userRes, cyclesRes] = await Promise.all([
+        supabase.from("v_admin_users").select("user_id,name,email,cpf,role").eq("user_id", userId).maybeSingle(),
         supabase
           .from("subscriptions")
           .select("id,status,value,started_at,expires_at,plans(name)")
           .eq("user_id", userId)
           .order("expires_at", { ascending: false, nullsFirst: false })
           .limit(12),
-        supabase.from("v_admin_users").select("email").eq("user_id", userId).maybeSingle(),
       ]);
 
-      if (profileRes.error) throw new Error(profileRes.error.message);
+      if (userRes.error) throw new Error(userRes.error.message);
       if (cyclesRes.error) throw new Error(cyclesRes.error.message);
-      if (authRes.error && authRes.error.code !== "PGRST116") throw new Error(authRes.error.message);
 
-      const p = (profileRes.data ?? null) as UserDetailRow | null;
-      const email = String(((authRes.data ?? null) as AuthUserRow | null)?.email ?? "");
+      const u = (userRes.data ?? null) as AdminUserRow | null;
       setDetailUser({
         id: userId,
-        name: String(p?.name ?? "—"),
-        email: email || "—",
-        cpf: String(p?.cpf ?? "—"),
-        role: String(p?.role ?? "—"),
+        name: String(u?.name ?? "—"),
+        email: String(u?.email ?? "—"),
+        cpf: String(u?.cpf ?? "—"),
+        role: String(u?.role ?? "—"),
       });
       setDetailCycles(((cyclesRes.data ?? []) as SubscriptionCycleRow[]) ?? []);
       setDetailLoading(false);

@@ -78,6 +78,22 @@ const SeoPage = () => {
     return d;
   }, []);
 
+  const buildApiUrl = (path: string) => {
+    if (typeof window !== "undefined") {
+      const host = window.location.hostname;
+      if (host === "localhost" || host === "127.0.0.1") return path;
+    }
+    const base = String(import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/+$/, "");
+    if (!base) return path;
+    return `${base}${path.startsWith("/") ? "" : "/"}${path}`;
+  };
+
+  const getToken = async () => {
+    let token = (await supabase.auth.getSession()).data.session?.access_token;
+    if (!token) token = (await supabase.auth.refreshSession()).data.session?.access_token;
+    return token ?? "";
+  };
+
   const aggregate = (rows: AppEventRow[]) => {
     const pv: Record<string, number> = {};
     const cl: Record<string, number> = {};
@@ -107,44 +123,80 @@ const SeoPage = () => {
     const run = async () => {
       setReady(false);
       setErrorMsg(null);
-      try {
-        const [{ data: ev24 }, { data: ev5 }] = await Promise.all([
-          supabase
-            .from("app_events")
-            .select("id,created_at,event_type,path,title,referrer,session_id,user_id,metadata")
-            .gte("created_at", toIso(since24h))
-            .order("created_at", { ascending: false })
-            .limit(5000),
-          supabase
-            .from("app_events")
-            .select("session_id,created_at")
-            .gte("created_at", toIso(since5m))
-            .order("created_at", { ascending: false })
-            .limit(2000),
-        ]);
-
-        if (!mounted) return;
-
-        const rows24 = (Array.isArray(ev24) ? ev24 : []) as AppEventRow[];
-        const rows5 = (Array.isArray(ev5) ? ev5 : []) as Pick<AppEventRow, "session_id" | "created_at">[];
-
-        setEvents24h(rows24.length);
-        setLastEvents(rows24.slice(0, 25));
-        aggregate(rows24);
-
-        const sessions = new Set<string>();
-        for (const r of rows5) {
-          const sid = String(r.session_id ?? "").trim();
-          if (sid) sessions.add(sid);
+      const token = await getToken();
+      if (token) {
+        try {
+          const r = await fetch(buildApiUrl("/api/admin/seo-metrics"), {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          });
+          const j = (await r.json().catch(() => null)) as
+            | {
+                activeSessions5m?: number;
+                events24h?: number;
+                pageViews24h?: Record<string, number>;
+                clicks24h?: Record<string, number>;
+                topButtons24h?: Record<string, number>;
+                topReferrers24h?: Record<string, number>;
+                lastEvents?: AppEventRow[];
+                error?: string;
+                message?: string;
+              }
+            | null;
+          if (mounted && j && !j.error && r.ok) {
+            setActiveSessions5m(Number(j.activeSessions5m ?? 0));
+            setEvents24h(Number(j.events24h ?? 0));
+            setPageViews24h((j.pageViews24h ?? {}) as Record<string, number>);
+            setClicks24h((j.clicks24h ?? {}) as Record<string, number>);
+            setTopButtons24h((j.topButtons24h ?? {}) as Record<string, number>);
+            setTopReferrers24h((j.topReferrers24h ?? {}) as Record<string, number>);
+            setLastEvents((Array.isArray(j.lastEvents) ? j.lastEvents : []).slice(0, 25));
+            setReady(true);
+            return;
+          }
+        } catch {
+          void 0;
         }
-        setActiveSessions5m(sessions.size);
-
-        setReady(true);
-      } catch (e) {
-        if (!mounted) return;
-        setErrorMsg("Não foi possível carregar os eventos. Verifique se a tabela app_events existe e se o admin tem permissão de leitura.");
-        setReady(true);
       }
+
+      const [ev24Res, ev5Res] = await Promise.all([
+        supabase
+          .from("app_events")
+          .select("id,created_at,event_type,path,title,referrer,session_id,user_id,metadata")
+          .gte("created_at", toIso(since24h))
+          .order("created_at", { ascending: false })
+          .limit(5000),
+        supabase
+          .from("app_events")
+          .select("session_id,created_at")
+          .gte("created_at", toIso(since5m))
+          .order("created_at", { ascending: false })
+          .limit(2000),
+      ]);
+
+      if (!mounted) return;
+      if (ev24Res.error || ev5Res.error) {
+        const msg = String(ev24Res.error?.message ?? ev5Res.error?.message ?? "Falha ao carregar eventos.");
+        setErrorMsg(msg);
+        setReady(true);
+        return;
+      }
+
+      const rows24 = (Array.isArray(ev24Res.data) ? ev24Res.data : []) as AppEventRow[];
+      const rows5 = (Array.isArray(ev5Res.data) ? ev5Res.data : []) as Pick<AppEventRow, "session_id" | "created_at">[];
+
+      setEvents24h(rows24.length);
+      setLastEvents(rows24.slice(0, 25));
+      aggregate(rows24);
+
+      const sessions = new Set<string>();
+      for (const r of rows5) {
+        const sid = String(r.session_id ?? "").trim();
+        if (sid) sessions.add(sid);
+      }
+      setActiveSessions5m(sessions.size);
+
+      setReady(true);
     };
     run();
     return () => {
