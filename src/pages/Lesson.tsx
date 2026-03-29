@@ -389,7 +389,7 @@ const genEngQuestions = (modulo: string, lessonId: number, rand: () => number): 
   const qs: Question[] = [
     {
       type: "image_match",
-      question: `Match the picture to the word:`,
+      question: `Associe a figura à palavra:`,
       pairs,
       shuffledLabels: shuffle(pairs.map((p) => p.label), rand),
     },
@@ -400,14 +400,14 @@ const genEngQuestions = (modulo: string, lessonId: number, rand: () => number): 
   const options = shuffle(opts, rand);
   qs.push({
     type: "multiple_choice",
-    question: `Lição ${lessonId}: How do you say "${target.pt}" in English?`,
+    question: `Lição ${lessonId}: Como se diz "${target.pt}" em inglês?`,
     options,
     correct: options.findIndex((x) => x === target.en),
   });
   const letters = shuffle(["A", "B", "C", "D"], rand);
   qs.push({
     type: "drag_order",
-    question: `Order letters:`,
+    question: `Ordene as letras:`,
     items: shuffle(letters, rand),
     correctOrder: [...letters].sort(),
   });
@@ -418,9 +418,9 @@ const genEngQuestions = (modulo: string, lessonId: number, rand: () => number): 
   ).slice(0, Math.min(3, Math.max(1, Math.floor(word.length / 2))));
   qs.push({
     type: "complete_word",
-    question: `Complete the word:`,
+    question: `Complete a palavra:`,
     word,
-    hint: `Translation of "${target.pt}"`,
+    hint: `Tradução de "${target.pt}"`,
     missingIndices: missingIdx.sort((a, b) => a - b),
   });
   while (qs.length < 8) {
@@ -430,7 +430,7 @@ const genEngQuestions = (modulo: string, lessonId: number, rand: () => number): 
     const options2 = shuffle(opt2, rand);
     qs.push({
       type: "multiple_choice",
-      question: `Lição ${lessonId}: Select "${w.en}"`,
+      question: `Lição ${lessonId}: Selecione "${w.en}"`,
       options: options2,
       correct: options2.findIndex((x) => x === w.en),
     });
@@ -444,6 +444,38 @@ const generateQuestions = (materia: string, modulo: string, lessonId: number): Q
   if (materia === "port") return genPortQuestions(modulo, lessonId, rand);
   return genEngQuestions(modulo, lessonId, rand);
 };
+
+const localizeEngText = (value: string) => {
+  const s = String(value ?? "");
+  if (!s) return s;
+  if (/^match the picture to the word:?$/i.test(s.trim())) return "Associe a figura à palavra:";
+  if (/^order letters:?$/i.test(s.trim())) return "Ordene as letras:";
+  if (/^complete the word:?$/i.test(s.trim())) return "Complete a palavra:";
+  const how = s.match(/^(Lição\s+\d+:\s+)?How do you say "([^"]+)" in English\?\s*$/i);
+  if (how) {
+    const prefix = how[1] ?? "";
+    const pt = how[2] ?? "";
+    return `${prefix}Como se diz "${pt}" em inglês?`;
+  }
+  const sel = s.match(/^(Lição\s+\d+:\s+)?Select\s+"([^"]+)"\s*$/i);
+  if (sel) {
+    const prefix = sel[1] ?? "";
+    const en = sel[2] ?? "";
+    return `${prefix}Selecione "${en}"`;
+  }
+  return s;
+};
+
+const localizeEngQuestions = (qs: Question[]) =>
+  qs.map((q) => {
+    if (q.type === "complete_word") {
+      const hint = String(q.hint ?? "");
+      const m = hint.match(/^Translation of "([^"]+)"\s*$/i);
+      const nextHint = m ? `Tradução de "${m[1] ?? ""}"` : hint;
+      return { ...q, question: localizeEngText(q.question), hint: nextHint };
+    }
+    return { ...q, question: localizeEngText(q.question) };
+  });
 
 const coerceQuestions = (v: unknown): Question[] | null => {
   if (!Array.isArray(v)) return null;
@@ -822,7 +854,9 @@ const LessonPage = () => {
   }, [lessonId, materia, modulo]);
 
   const questions: Question[] = useMemo(() => {
-    return dbQuestions ?? generateQuestions(materia, modulo, lessonId);
+    const qs = dbQuestions ?? generateQuestions(materia, modulo, lessonId);
+    if (materia === "eng") return localizeEngQuestions(qs);
+    return qs;
   }, [dbQuestions, lessonId, materia, modulo]);
 
   const [current, setCurrent] = useState(0);
