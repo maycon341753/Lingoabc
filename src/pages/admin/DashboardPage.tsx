@@ -23,8 +23,8 @@ const DashboardPage = () => {
     const load = async () => {
       const monthStartIso = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
 
-      const [{ count: cUsers }, { count: cLessons }, subsTryStartedAt] = await Promise.all([
-        supabase.from("profiles").select("id", { count: "exact", head: true }),
+      const [usersTry, { count: cLessons }, subsTryStartedAt] = await Promise.all([
+        supabase.from("v_admin_users").select("user_id", { count: "exact", head: true }),
         supabase.from("lessons").select("id", { count: "exact", head: true }),
         supabase
           .from("subscriptions")
@@ -32,13 +32,16 @@ const DashboardPage = () => {
           .gte("started_at", monthStartIso),
       ]);
 
+      const users =
+        usersTry.error != null ? await supabase.from("profiles").select("id", { count: "exact", head: true }) : usersTry;
+
       const subs =
         subsTryStartedAt.error != null
           ? await supabase.from("subscriptions").select("value, status, created_at").gte("created_at", monthStartIso)
           : subsTryStartedAt;
 
       if (!mounted) return;
-      setUsersCount(cUsers ?? 0);
+      setUsersCount(users.count ?? 0);
       setLessonsCount(cLessons ?? 0);
 
       const subsData = (subs.data ?? []) as SubscriptionMetricsRow[];
