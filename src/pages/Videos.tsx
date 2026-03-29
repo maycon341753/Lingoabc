@@ -92,6 +92,16 @@ const VideosPage = () => {
       <Navbar />
       <div className="container mx-auto max-w-6xl px-4 py-10">
         <h1 className="text-3xl font-display font-extrabold mb-6 text-center">Vídeos e Músicas</h1>
+        {hasActivePlan === false && (
+          <div className="mb-8 flex justify-center">
+            <Button
+              className="bg-gradient-hero rounded-2xl font-extrabold text-base md:text-lg px-8 py-7 shadow-card motion-safe:animate-pulse motion-reduce:animate-none"
+              onClick={() => navigate("/usuario/planos")}
+            >
+              Mais de 100 musicas, DESBLOQUEIE
+            </Button>
+          </div>
+        )}
         {loading ? (
           <p className="text-center text-muted-foreground font-bold">Carregando…</p>
         ) : items.length === 0 ? (
