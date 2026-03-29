@@ -1000,6 +1000,8 @@ const LessonPage = () => {
     const run = async () => {
       if (!user?.id) return;
       const uid = user.id;
+      let token = (await supabase.auth.getSession()).data.session?.access_token;
+      if (!token) token = (await supabase.auth.refreshSession()).data.session?.access_token;
       const countRow = await supabase
         .from("user_module_progress")
         .select("id,completed_lessons")
@@ -1036,6 +1038,32 @@ const LessonPage = () => {
       const up = await supabase.from("user_activity_progress").upsert(payload, { onConflict: "user_id,subject,module,lesson_id" });
       if (up.error) {
         await supabase.from("user_activity_progress").insert(payload);
+      }
+
+      if (token) {
+        try {
+          const host = typeof window !== "undefined" ? window.location.hostname : "";
+          const base = host === "localhost" || host === "127.0.0.1" ? "" : String(import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/+$/, "");
+          const url = `${base}${"/api/user/sync-progress"}`;
+          await fetch(url, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+            body: JSON.stringify({
+              activities: [
+                {
+                  subject: materia,
+                  module: modulo,
+                  lesson_id: lessonId,
+                  status: "completed",
+                  score: nextLesson,
+                },
+              ],
+              moduleProgress: [{ subject: materia, module: modulo, completed_lessons: nextCount, completed: nextCount >= 40 }],
+            }),
+          });
+        } catch {
+          void 0;
+        }
       }
     };
     run();

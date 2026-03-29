@@ -52,6 +52,70 @@ const DashboardPage = () => {
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
 
+  const getToken = useCallback(async () => {
+    let token = (await supabase.auth.getSession()).data.session?.access_token;
+    if (!token) token = (await supabase.auth.refreshSession()).data.session?.access_token;
+    return token ?? "";
+  }, []);
+
+  const parseLocalProgress = useCallback((uid: string) => {
+    const activities: { subject: string; module: string; lesson_id: number; status: string; score: number }[] = [];
+    const moduleMax: Record<string, number> = {};
+    try {
+      const prefix = `pointsLesson:${uid}:`;
+      for (let i = 0; i < window.localStorage.length; i += 1) {
+        const k = window.localStorage.key(i);
+        if (!k || !k.startsWith(prefix)) continue;
+        const parts = k.split(":");
+        if (parts.length < 5) continue;
+        const subject = String(parts[2] ?? "");
+        const module = String(parts[3] ?? "");
+        const lessonId = Number(parts[4] ?? 0);
+        if (!subject || !module || !Number.isFinite(lessonId) || lessonId <= 0) continue;
+        const score = Number(window.localStorage.getItem(k) || "0");
+        if (!Number.isFinite(score) || score <= 0) continue;
+        activities.push({ subject, module, lesson_id: lessonId, status: "completed", score });
+        const modKey = `${subject}::${module}`;
+        moduleMax[modKey] = Math.max(moduleMax[modKey] ?? 0, lessonId);
+      }
+    } catch {
+      return { activities: [], moduleProgress: [] as { subject: string; module: string; completed_lessons: number; completed: boolean }[] };
+    }
+    const moduleProgress = Object.entries(moduleMax).map(([k, completed_lessons]) => {
+      const [subject, module] = k.split("::");
+      return { subject: String(subject ?? ""), module: String(module ?? ""), completed_lessons, completed: completed_lessons >= 40 };
+    });
+    return { activities, moduleProgress };
+  }, []);
+
+  const syncLocalToServer = useCallback(
+    async (uid: string) => {
+    if (typeof window === "undefined") return false;
+    const key = `progressSynced:${uid}`;
+    if (window.sessionStorage.getItem(key) === "1") return false;
+    const token = await getToken();
+    if (!token) return false;
+    const { activities, moduleProgress } = parseLocalProgress(uid);
+    if (activities.length === 0) return false;
+    setSyncing(true);
+    try {
+      const r = await fetch(buildApiUrl("/api/user/sync-progress"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ activities, moduleProgress }),
+      });
+      const ok = r.ok;
+      if (ok) window.sessionStorage.setItem(key, "1");
+      setSyncing(false);
+      return ok;
+    } catch {
+      setSyncing(false);
+      return false;
+    }
+    },
+    [getToken, parseLocalProgress],
+  );
+
   const load = useCallback(async (mountedRef?: { current: boolean }) => {
       setLoading(true);
       const { data: auth } = await supabase.auth.getUser();
@@ -61,6 +125,43 @@ const DashboardPage = () => {
       navigate("/login");
         return;
       }
+
+      const token = await getToken();
+      if (token) {
+        try {
+          const r = await fetch(buildApiUrl("/api/user/dashboard-metrics"), {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          });
+          const j = (await r.json().catch(() => null)) as
+            | {
+                ok?: boolean;
+                welcomeName?: string;
+                planName?: string | null;
+                planStatus?: string | null;
+                lessonsTotal?: number;
+                completedActivities?: number;
+                points?: number;
+                streakDays?: number;
+              }
+            | null;
+          if (mountedRef && !mountedRef.current) return;
+          if (r.ok && j?.ok) {
+            setWelcomeName(String(j.welcomeName ?? "estudante"));
+            setPlanName(j.planName ?? null);
+            setPlanStatus(j.planStatus ?? null);
+            setLessonsTotal(Number(j.lessonsTotal ?? 0));
+            setCompletedActivities(Number(j.completedActivities ?? 0));
+            setPoints(Number(j.points ?? 0));
+            setStreakDays(Number(j.streakDays ?? 0));
+            setLoading(false);
+            return;
+          }
+        } catch {
+          void 0;
+        }
+      }
+
       const lessonsTryActive = supabase.from("lessons").select("id", { count: "exact", head: true }).eq("active", true);
       const [{ data: planRow, error: planError }, lessonsTry, { data: progressRows }] = await Promise.all([
         supabase.from("v_user_profile_plan").select("user_id,name,plan_name,subscription_status").eq("user_id", uid).maybeSingle(),
@@ -96,7 +197,7 @@ const DashboardPage = () => {
       if (mountedRef && !mountedRef.current) return;
       setLessonsTotal((lessonsCount as { count: number | null }).count ?? 0);
 
-      const rows = Array.isArray(progressRows) ? progressRows : [];
+      let rows = Array.isArray(progressRows) ? progressRows : [];
       const completed = rows.filter((r: { status: string | null }) => (r.status ?? "").toLowerCase() === "completed");
       if (completed.length > 0) {
         setCompletedActivities(completed.length);
@@ -120,8 +221,24 @@ const DashboardPage = () => {
         }
         setCompletedActivities(count);
         setPoints(pts);
+        if (count > 0) {
+          const synced = await syncLocalToServer(uid);
+          if (synced) {
+            const { data: after } = await supabase.from("user_activity_progress").select("status,score,created_at").eq("user_id", uid);
+            if (mountedRef && !mountedRef.current) return;
+            rows = Array.isArray(after) ? after : [];
+            const completed2 = rows.filter((r: { status: string | null }) => (r.status ?? "").toLowerCase() === "completed");
+            if (completed2.length > 0) {
+              setCompletedActivities(completed2.length);
+              const pts2 = completed2.reduce((sum: number, r: { score: number | null }) => sum + Number(r.score ?? 0), 0);
+              setPoints(pts2);
+            }
+          }
+        }
       }
-      const days = Array.from(new Set(completed.map((r: { created_at: string }) => new Date(r.created_at).toDateString())))
+      const usedRows = Array.isArray(rows) ? rows : [];
+      const completedRows = usedRows.filter((r: { status: string | null }) => (r.status ?? "").toLowerCase() === "completed");
+      const days = Array.from(new Set(completedRows.map((r: { created_at: string }) => new Date(r.created_at).toDateString())))
         .map((d) => new Date(d).getTime())
         .sort((a, b) => b - a);
       let streak = 0;
@@ -138,7 +255,7 @@ const DashboardPage = () => {
       }
       setStreakDays(streak);
       setLoading(false);
-  }, [navigate]);
+  }, [getToken, navigate, syncLocalToServer]);
 
   useEffect(() => {
     const mountedRef = { current: true };
