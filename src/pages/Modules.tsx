@@ -430,49 +430,59 @@ const ModulesPage = () => {
 
         {/* Lesson map */}
         {reduceMotion ? (
-          <div key={`${selectedModule}-${selectedSubject}`} className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-8 gap-3">
-            {lessons.map((lesson) => {
-              const cls = `relative aspect-square rounded-2xl flex flex-col items-center justify-center font-bold transition-all ${
-                lesson.completed
-                  ? "bg-primary text-primary-foreground shadow-playful"
-                  : lesson.locked
-                    ? "bg-muted text-muted-foreground cursor-not-allowed opacity-60"
-                    : "bg-card shadow-card hover:shadow-hover text-foreground"
-              }`;
-              const icon = lesson.completed ? (
-                <CheckCircle className="w-6 h-6 mb-0.5" />
-              ) : lesson.locked ? (
-                <Lock className="w-5 h-5 mb-0.5" />
-              ) : (
-                <Star className="w-5 h-5 mb-0.5 text-sun" />
-              );
-              const onClick = () => {
-                if (isGuest) {
-                  navigate("/login");
-                  return;
-                }
-                if (lesson.locked) {
-                  if (isFreeUser && lesson.id !== 1) navigate("/planos");
-                  return;
-                }
-                navigate(`/licao?modulo=${encodeURIComponent(moduleName)}&materia=${encodeURIComponent(selectedSubject)}&licao=${lesson.id}`);
-              };
-              return (
-                <button key={lesson.id} className={cls} onClick={onClick} type="button">
-                  {icon}
-                  <span className="text-xs">{lesson.id}</span>
-                </button>
-              );
-            })}
-          </div>
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={`${selectedModule}-${selectedSubject}`}
+              className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-8 gap-3"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.18 }}
+            >
+              {lessons.map((lesson) => {
+                const cls = `relative aspect-square rounded-2xl flex flex-col items-center justify-center font-bold transition-all ${
+                  lesson.completed
+                    ? "bg-primary text-primary-foreground shadow-playful"
+                    : lesson.locked
+                      ? "bg-muted text-muted-foreground cursor-not-allowed opacity-60"
+                      : "bg-card shadow-card hover:shadow-hover text-foreground"
+                }`;
+                const icon = lesson.completed ? (
+                  <CheckCircle className="w-6 h-6 mb-0.5" />
+                ) : lesson.locked ? (
+                  <Lock className="w-5 h-5 mb-0.5" />
+                ) : (
+                  <Star className="w-5 h-5 mb-0.5 text-sun" />
+                );
+                const onClick = () => {
+                  if (isGuest) {
+                    navigate("/login");
+                    return;
+                  }
+                  if (lesson.locked) {
+                    if (isFreeUser && lesson.id !== 1) navigate("/planos");
+                    return;
+                  }
+                  navigate(`/licao?modulo=${encodeURIComponent(moduleName)}&materia=${encodeURIComponent(selectedSubject)}&licao=${lesson.id}`);
+                };
+                return (
+                  <button key={lesson.id} className={cls} onClick={onClick} type="button">
+                    {icon}
+                    <span className="text-xs">{lesson.id}</span>
+                  </button>
+                );
+              })}
+            </motion.div>
+          </AnimatePresence>
         ) : (
           <AnimatePresence mode="wait">
             <motion.div
               key={`${selectedModule}-${selectedSubject}`}
               className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-8 gap-3"
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
+              initial={{ opacity: 0, y: 14, filter: "blur(6px)" }}
+              animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+              exit={{ opacity: 0, y: -14, filter: "blur(6px)" }}
+              transition={{ duration: 0.28, ease: "easeOut" }}
             >
               {lessons.map((lesson, i) => {
                 const cls = `relative aspect-square rounded-2xl flex flex-col items-center justify-center font-bold transition-all ${
