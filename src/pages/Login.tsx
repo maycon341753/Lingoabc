@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
+import { Eye, EyeOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -22,6 +23,7 @@ const LoginPage = () => {
   });
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [loggedUserLabel, setLoggedUserLabel] = useState<string | null>(null);
   const [loggedUserIsAdmin, setLoggedUserIsAdmin] = useState(false);
@@ -217,15 +219,27 @@ const LoginPage = () => {
           </div>
           <div>
             <Label htmlFor="password" className="font-bold">Senha</Label>
-            <Input
-              id="password"
-              type="password"
-              placeholder="••••••••"
-              className="rounded-xl mt-1"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-            />
+            <div className="relative mt-1">
+              <Input
+                id="password"
+                type={showPassword ? "text" : "password"}
+                placeholder="••••••••"
+                className="rounded-xl pr-12"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+              />
+              {password.length > 0 && (
+                <button
+                  type="button"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 h-9 w-9 inline-flex items-center justify-center rounded-lg text-muted-foreground hover:text-foreground"
+                  aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"}
+                  onClick={() => setShowPassword((v) => !v)}
+                >
+                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              )}
+            </div>
           </div>
           <Button type="submit" disabled={isSubmitting} className="w-full bg-gradient-hero font-bold rounded-xl py-5 text-lg">
             Entrar 🚀
