@@ -120,8 +120,9 @@ const Footer = () => {
           </div>
         </div>
 
-        <div className="border-t border-border mt-8 pt-6 text-center text-sm text-muted-foreground">
-          © {new Date().getFullYear()} LingoABC. Todos os direitos reservados.
+        <div className="border-t border-border mt-8 pt-6 text-center text-sm text-muted-foreground space-y-1">
+          <div>© {new Date().getFullYear()} LingoABC. Todos os direitos reservados.</div>
+          <div>CNPJ: 39.433.448/0001-34 - LingoABC</div>
         </div>
       </div>
     </footer>
