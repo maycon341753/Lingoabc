@@ -299,16 +299,33 @@ const genPortQuestions = (modulo: string, lessonId: number, rand: () => number):
     {
       type: "multiple_choice",
       question: `Qual destas é uma vogal?`,
-      options: shuffle(["B", "R", vowels[Math.floor(rand() * vowels.length)] ?? "A", "T"], rand),
-      correct: 0,
+      options: (() => {
+        const vowel = vowels[Math.floor(rand() * vowels.length)] ?? "A";
+        return shuffle(["B", "R", vowel, "T"], rand);
+      })(),
+      correct: -1,
     },
     {
       type: "multiple_choice",
       question: `Quantas letras tem "${word}"?`,
       options: shuffle([String(word.length), String(word.length - 1), String(word.length + 1), String(word.length + 2)], rand),
-      correct: 0,
+      correct: -1,
     },
   ];
+  {
+    const q = qs[1];
+    if (q?.type === "multiple_choice") {
+      const v = q.options.find((x) => vowels.includes(String(x).toUpperCase()));
+      q.correct = Math.max(0, q.options.findIndex((x) => String(x).toUpperCase() === String(v ?? "A").toUpperCase()));
+    }
+  }
+  {
+    const q = qs[2];
+    if (q?.type === "multiple_choice") {
+      const target = String(word.length);
+      q.correct = Math.max(0, q.options.findIndex((x) => String(x) === target));
+    }
+  }
   const fruits = [
     { emoji: "🍎", label: "maçã" },
     { emoji: "🍌", label: "banana" },
