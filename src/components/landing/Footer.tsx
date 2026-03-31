@@ -49,6 +49,7 @@ const Footer = () => {
             <ul className="space-y-2 text-sm text-muted-foreground">
               <li><Link to="/lgpd" className="hover:text-primary transition-colors">LGPD</Link></li>
               <li><Link to="/eca" className="hover:text-primary transition-colors">ECA Digital</Link></li>
+              <li><Link to="/programaindicacao" className="hover:text-primary transition-colors">Programa de Indicação</Link></li>
             </ul>
           </div>
 

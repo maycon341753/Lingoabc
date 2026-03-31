@@ -22,6 +22,7 @@ const Login = lazy(() => import("./pages/Login.tsx"));
 const Register = lazy(() => import("./pages/Register.tsx"));
 const Dashboard = lazy(() => import("./pages/Dashboard.tsx"));
 const Referral = lazy(() => import("./pages/Referral.tsx"));
+const ProgramaIndicacao = lazy(() => import("./pages/ProgramaIndicacao.tsx"));
 const Admin = lazy(() => import("./pages/Admin.tsx"));
 const Profile = lazy(() => import("./pages/Profile.tsx"));
 const UserPlans = lazy(() => import("./pages/UserPlans.tsx"));
@@ -109,6 +110,7 @@ const App = () => (
             />
             <Route path="/dashboard" element={<Navigate to="/usuario/dashboard" replace />} />
             <Route path="/indicacao" element={<Referral />} />
+            <Route path="/programaindicacao" element={<ProgramaIndicacao />} />
             <Route path="/admin/*" element={<Admin />} />
             <Route path="/perfil" element={<Profile />} />
             <Route path="/lgpd" element={<Lgpd />} />
